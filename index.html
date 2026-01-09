@@ -45,8 +45,10 @@
         #boss-hud {
             position: fixed;
             top: 20px;
-            right: 20px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 100;
+            text-align: center;
         }
 
         #boss-hp-bar {
@@ -116,9 +118,8 @@
     </div>
 
     <div id="boss-hud">
-        <div id="boss-name" class="label">Quirrell</div>
-        <div class="label">Boss HP</div>
-        <div class="bar-container">
+        <div id="boss-name" class="label" style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">QUIRRELL</div>
+        <div class="bar-container" style="width: 400px;">
             <div id="boss-hp-bar" class="bar" style="width: 100%;"></div>
         </div>
     </div>

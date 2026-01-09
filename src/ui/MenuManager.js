@@ -9,6 +9,7 @@ export class MenuManager {
         this.difficulty = 'normal'; // 'normal', 'hard', ou 'infinite'
         this.hardModeCompleted = localStorage.getItem('hardModeCompleted') === 'true';
         this.bossKillCount = 0; // Pour le mode infini
+        this.keyboardLayout = localStorage.getItem('keyboardLayout') || 'wasd'; // 'wasd' ou 'zqsd'
         
         this.createMenus();
         this.showTitleScreen();
@@ -339,10 +340,39 @@ export class MenuManager {
                     text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
                 ">🎯 Contrôles</h2>
                 
+                <div style="margin-bottom: 30px; background: rgba(255, 215, 0, 0.15); padding: 20px; border-radius: 10px; border: 2px solid #ffd700;">
+                    <h3 style="color: #ffd700; margin-bottom: 15px; text-align: center;">⌨️ Configuration du Clavier</h3>
+                    <div style="display: flex; gap: 20px; justify-content: center;">
+                        <button id="btn-layout-wasd" style="
+                            padding: 15px 30px;
+                            font-size: 18px;
+                            font-weight: bold;
+                            color: white;
+                            background: linear-gradient(135deg, #4169e1 0%, #1e3a8a 100%);
+                            border: 3px solid ${this.keyboardLayout === 'wasd' ? '#ffd700' : 'rgba(255, 255, 255, 0.3)'};
+                            border-radius: 10px;
+                            cursor: pointer;
+                            transition: all 0.3s;
+                        ">WASD + Q</button>
+                        <button id="btn-layout-zqsd" style="
+                            padding: 15px 30px;
+                            font-size: 18px;
+                            font-weight: bold;
+                            color: white;
+                            background: linear-gradient(135deg, #4169e1 0%, #1e3a8a 100%);
+                            border: 3px solid ${this.keyboardLayout === 'zqsd' ? '#ffd700' : 'rgba(255, 255, 255, 0.3)'};
+                            border-radius: 10px;
+                            cursor: pointer;
+                            transition: all 0.3s;
+                        ">ZQSD + A</button>
+                    </div>
+                    <p style="text-align: center; margin-top: 10px; font-size: 14px; opacity: 0.8;">Configuration actuelle: <strong id="current-layout">${this.keyboardLayout === 'wasd' ? 'WASD + Q' : 'ZQSD + A'}</strong></p>
+                </div>
+                
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 40px;">
                     <div style="background: rgba(255, 255, 255, 0.1); padding: 20px; border-radius: 10px; border: 2px solid #ffd700;">
                         <h3 style="color: #ffd700; margin-bottom: 15px;">🚶 Déplacement</h3>
-                        <p><strong>ZQSD / WASD</strong> - Se déplacer</p>
+                        <p id="movement-keys"><strong>${this.keyboardLayout === 'wasd' ? 'WASD' : 'ZQSD'}</strong> - Se déplacer</p>
                         <p><strong>Souris</strong> - Regarder autour</p>
                     </div>
                     
@@ -350,7 +380,7 @@ export class MenuManager {
                         <h3 style="color: #ffd700; margin-bottom: 15px;">⚡ Sorts</h3>
                         <p><strong>1, 2, 3, 4</strong> - Sélectionner sort</p>
                         <p><strong>Clic gauche / Espace</strong> - Lancer sort</p>
-                        <p><strong>Q</strong> - Configuration sorts</p>
+                        <p id="spell-wheel-key"><strong>${this.keyboardLayout === 'wasd' ? 'Q' : 'A'}</strong> - Configuration sorts</p>
                     </div>
                     
                     <div style="background: rgba(255, 255, 255, 0.1); padding: 20px; border-radius: 10px; border: 2px solid #ffd700;">
@@ -400,6 +430,26 @@ export class MenuManager {
         document.getElementById('btn-exit-controls').addEventListener('click', () => {
             this.hideControls();
         });
+        
+        // Gestionnaires pour le choix du clavier
+        const wasdBtn = document.getElementById('btn-layout-wasd');
+        const zqsdBtn = document.getElementById('btn-layout-zqsd');
+        
+        if (wasdBtn) {
+            wasdBtn.addEventListener('click', () => {
+                this.keyboardLayout = 'wasd';
+                localStorage.setItem('keyboardLayout', 'wasd');
+                this.updateControlsDisplay();
+            });
+        }
+        
+        if (zqsdBtn) {
+            zqsdBtn.addEventListener('click', () => {
+                this.keyboardLayout = 'zqsd';
+                localStorage.setItem('keyboardLayout', 'zqsd');
+                this.updateControlsDisplay();
+            });
+        }
     }
 
     createPauseMenu() {
@@ -582,6 +632,30 @@ export class MenuManager {
             this.resume();
         } else {
             this.pause();
+        }
+    }
+    
+    updateControlsDisplay() {
+        const currentLayoutEl = document.getElementById('current-layout');
+        const movementKeysEl = document.getElementById('movement-keys');
+        const spellWheelKeyEl = document.getElementById('spell-wheel-key');
+        const wasdBtn = document.getElementById('btn-layout-wasd');
+        const zqsdBtn = document.getElementById('btn-layout-zqsd');
+        
+        if (currentLayoutEl) {
+            currentLayoutEl.textContent = this.keyboardLayout === 'wasd' ? 'WASD + Q' : 'ZQSD + A';
+        }
+        if (movementKeysEl) {
+            movementKeysEl.innerHTML = `<strong>${this.keyboardLayout === 'wasd' ? 'WASD' : 'ZQSD'}</strong> - Se déplacer`;
+        }
+        if (spellWheelKeyEl) {
+            spellWheelKeyEl.innerHTML = `<strong>${this.keyboardLayout === 'wasd' ? 'Q' : 'A'}</strong> - Configuration sorts`;
+        }
+        if (wasdBtn) {
+            wasdBtn.style.borderColor = this.keyboardLayout === 'wasd' ? '#ffd700' : 'rgba(255, 255, 255, 0.3)';
+        }
+        if (zqsdBtn) {
+            zqsdBtn.style.borderColor = this.keyboardLayout === 'zqsd' ? '#ffd700' : 'rgba(255, 255, 255, 0.3)';
         }
     }
     createVictoryScreen() {

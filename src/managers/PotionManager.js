@@ -24,6 +24,8 @@ export class PotionManager {
         this.maxSpellsPerGame = 5; // Maximum 5 sorts par partie
         this.spellsSpawned = 0; // Compteur de sorts apparus
         this.currentBossIndex = 0; // Index du boss actuel
+        this.disableSpellPickups = false; // Désactiver les pickups de sorts (mode infini)
+        this.spawnedSpells = new Set(); // Tracker les sorts déjà apparus (sauf bombarda)
     }
     
     setSpellManager(spellManager) {
@@ -110,6 +112,11 @@ export class PotionManager {
     }
 
     shouldSpawnSpell() {
+        // Ne pas spawner de sorts en mode infini
+        if (this.disableSpellPickups) {
+            return false;
+        }
+        
         // Ne pas spawner de sort avant le 2ème boss (index >= 1)
         if (this.currentBossIndex < 1) {
             return false;
@@ -135,10 +142,22 @@ export class PotionManager {
                 const itemData = this.potionsToSpawn.shift();
                 
                 if (itemData.type === 'spell') {
-                    // Spawner un sort
-                    const spell = new SpellPickup(this.scene, itemData.spellName, itemData.position);
-                    this.spellPickups.push(spell);
-                    console.log(`✨ Sort ${spell.config.displayName} apparu ! (${this.spellsSpawned}/${this.maxSpellsPerGame} sorts au total)`);
+                    // Vérifier si le sort peut apparaître (sauf bombarda qui peut apparaître plusieurs fois)
+                    if (itemData.spellName !== 'bombarda' && this.spawnedSpells.has(itemData.spellName)) {
+                        console.log(`⚠️ Sort ${itemData.spellName} déjà apparu, conversion en potion`);
+                        // Convertir en potion si le sort a déjà été spawné
+                        const randomType = this.potionTypes[Math.floor(Math.random() * this.potionTypes.length)];
+                        const potion = new Potion(this.scene, randomType, itemData.position);
+                        this.potions.push(potion);
+                    } else {
+                        // Spawner un sort
+                        const spell = new SpellPickup(this.scene, itemData.spellName, itemData.position);
+                        this.spellPickups.push(spell);
+                        if (itemData.spellName !== 'bombarda') {
+                            this.spawnedSpells.add(itemData.spellName);
+                        }
+                        console.log(`✨ Sort ${spell.config.displayName} apparu ! (${this.spellsSpawned}/${this.maxSpellsPerGame} sorts au total)`);
+                    }
                 } else {
                     // Spawner une potion
                     const potion = new Potion(this.scene, itemData.type, itemData.position);

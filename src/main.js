@@ -67,7 +67,7 @@ menuManager.onStartCallback = () => {
     player.difficulty = menuManager.difficulty;
     bossManager.difficulty = menuManager.difficulty;
     
-    // Mode infini : débloquer les sorts impardonnables et activer le mode
+    // Mode infini : débloquer TOUS les sorts et désactiver les pickups
     if (menuManager.difficulty === 'infinite') {
         bossManager.isInfiniteMode = true;
         bossManager.bossKillCount = 0;
@@ -79,14 +79,21 @@ menuManager.onStartCallback = () => {
         player.stats.hp = 200;
         player.stats.mana = 200;
         
-        // Débloquer les sorts impardonnables
-        spellManager.unlockSpell('impero');
-        spellManager.unlockSpell('endoloris');
-        spellManager.unlockSpell('avadaKedavra');
+        // Débloquer TOUS les sorts disponibles
+        const allSpells = [
+            'incendio', 'stupefix', 'protegoMaxima', 'sectumsempra',
+            'arrestoMomentum', 'bombarda', 'diffindo', 'speroPatronum', 'petrificusTotalus',
+            'impero', 'endoloris', 'avadaKedavra'
+        ];
+        allSpells.forEach(spell => spellManager.unlockSpell(spell));
         
-        console.log('☠️ MODE INFINI ACTIVÉ - Level Max (200 HP/Mana) - Sorts Impardonnables débloqués !');
+        // Désactiver l'apparition des sorts au sol en mode infini
+        potionManager.disableSpellPickups = true;
+        
+        console.log('☠️ MODE INFINI ACTIVÉ - Level Max (200 HP/Mana) - TOUS les sorts débloqués - Pickups de sorts désactivés !');
     } else {
         bossManager.isInfiniteMode = false;
+        potionManager.disableSpellPickups = false;
     }
     
     console.log(`🎮 Difficulté sélectionnée: ${menuManager.difficulty.toUpperCase()}`);
@@ -135,6 +142,7 @@ function resetGame() {
     potionManager.clearPotions();
     potionManager.resetSpellCounter(); // Réinitialiser le compteur de sorts
     potionManager.setBossIndex(0); // Réinitialiser l'index du boss
+    potionManager.spawnedSpells.clear(); // Réinitialiser les sorts déjà apparus
     
     // Réinitialiser les sorts
     spellManager.equippedSpells = [null, null, null, null];
@@ -316,11 +324,15 @@ function updateHUD() {
             bossHpBar.style.width = bossHpPercent + '%';
         }
         if (bossName) {
-            bossName.textContent = boss.name;
+            // Formater le nom du boss: majuscules et retirer "Part 1", "Final", etc.
+            let displayName = boss.name.toUpperCase();
+            displayName = displayName.replace(/ PART \d+/i, '');
+            displayName = displayName.replace(/ FINAL/i, '');
+            bossName.textContent = displayName;
         }
     } else {
         if (bossHpBar) bossHpBar.style.width = '0%';
-        if (bossName) bossName.textContent = 'Aucun boss';
+        if (bossName) bossName.textContent = 'AUCUN BOSS';
     }
 }
 
@@ -350,8 +362,9 @@ document.addEventListener('keydown', (e) => {
         return;
     }
     
-    // Ouvrir/Fermer la roue de sorts avec Q
-    if (key === 'q') {
+    // Ouvrir/Fermer la roue de sorts avec Q (WASD) ou A (ZQSD)
+    const spellWheelKey = menuManager.keyboardLayout === 'wasd' ? 'q' : 'a';
+    if (key === spellWheelKey) {
         e.preventDefault();
         spellWheel.toggle();
         isWheelOpen = spellWheel.isOpen;
@@ -367,15 +380,25 @@ document.addEventListener('keydown', (e) => {
             document.body.style.cursor = 'none';
         }
         
-        updateCrosshairVisibility();eturn;
+        updateCrosshairVisibility();
+        return;
     }
     
     // Déplacement (seulement si la roue est fermée)
     if (!isWheelOpen) {
-        if (key === 'w' || key === 'z') keys.forward = true;
-        if (key === 's') keys.backward = true;
-        if (key === 'a') keys.left = true;
-        if (key === 'd') keys.right = true;
+        if (menuManager.keyboardLayout === 'wasd') {
+            // Configuration WASD
+            if (key === 'w') keys.forward = true;
+            if (key === 's') keys.backward = true;
+            if (key === 'a') keys.left = true;
+            if (key === 'd') keys.right = true;
+        } else {
+            // Configuration ZQSD
+            if (key === 'z') keys.forward = true;
+            if (key === 's') keys.backward = true;
+            if (key === 'q') keys.left = true;
+            if (key === 'd') keys.right = true;
+        }
     }
 
     // Sélection des sorts (1-4) - Ferme automatiquement la roue
@@ -397,17 +420,43 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault();
         castSpell();
     }
+    
+    // Touche V pour accéder à la fin du jeu (mode debug)
+    if (key === 'v') {
+        e.preventDefault();
+        console.log('🏁 Touche V : Accès à la fin du jeu');
+        if (menuManager && player) {
+            const stats = {
+                hp: Math.round(player.stats.hp),
+                maxHp: player.stats.maxHp,
+                mana: Math.round(player.stats.mana),
+                maxMana: player.stats.maxMana,
+                spellsUnlocked: spellManager.unlockedSpells.length
+            };
+            menuManager.showVictory(stats);
+        }
+    }
 });
 
 document.addEventListener('keyup', (e) => {
     const key = e.key.toLowerCase();
     
-    if (key === 'q') return;
+    const spellWheelKey = menuManager.keyboardLayout === 'wasd' ? 'q' : 'a';
+    if (key === spellWheelKey) return;
     
-    if (key === 'w' || key === 'z') keys.forward = false;
-    if (key === 's') keys.backward = false;
-    if (key === 'a') keys.left = false;
-    if (key === 'd') keys.right = false;
+    if (menuManager.keyboardLayout === 'wasd') {
+        // Configuration WASD
+        if (key === 'w') keys.forward = false;
+        if (key === 's') keys.backward = false;
+        if (key === 'a') keys.left = false;
+        if (key === 'd') keys.right = false;
+    } else {
+        // Configuration ZQSD
+        if (key === 'z') keys.forward = false;
+        if (key === 's') keys.backward = false;
+        if (key === 'q') keys.left = false;
+        if (key === 'd') keys.right = false;
+    }
 });
 
 // Clic souris pour lancer un sort
