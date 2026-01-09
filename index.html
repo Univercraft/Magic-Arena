@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Harry Potter Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        #hud {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+        }
+
+        .bar-container {
+            width: 300px;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #fff;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+
+        .bar {
+            height: 100%;
+            transition: width 0.3s;
+        }
+
+        #hp-bar {
+            background: linear-gradient(90deg, #ff0000, #ff6666);
+        }
+
+        #mana-bar {
+            background: linear-gradient(90deg, #0088ff, #66ccff);
+        }
+
+        #boss-hud {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+        }
+
+        #boss-hp-bar {
+            background: linear-gradient(90deg, #ff00ff, #ff66ff);
+        }
+
+        .label {
+            color: white;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        /* Crosshair / Pointeur au centre */
+        #crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 500;
+            pointer-events: none;
+        }
+
+        /* Point de visée simple */
+        .crosshair-dot {
+            width: 6px;
+            height: 6px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 0 4px black, 0 0 8px rgba(255, 255, 255, 0.8);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .crosshair-ring {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+        }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    
+    <!-- Crosshair / Pointeur de visée au centre -->
+    <div id="crosshair">
+        <div class="crosshair-ring"></div>
+        <div class="crosshair-dot"></div>
+    </div>
+    
+    <div id="hud">
+        <div class="label">HP</div>
+        <div class="bar-container">
+            <div id="hp-bar" class="bar" style="width: 100%;"></div>
+        </div>
+        <div class="label">Mana</div>
+        <div class="bar-container">
+            <div id="mana-bar" class="bar" style="width: 100%;"></div>
+        </div>
+    </div>
+
+    <div id="boss-hud">
+        <div id="boss-name" class="label">Quirrell</div>
+        <div class="label">Boss HP</div>
+        <div class="bar-container">
+            <div id="boss-hp-bar" class="bar" style="width: 100%;"></div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
