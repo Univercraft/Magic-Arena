@@ -343,19 +343,6 @@ document.addEventListener('keydown', (e) => {
         }
         return;
     }    updateCrosshairVisibility();
-    
-    // OPTION TEMPORAIRE : Touche V pour victoire (à enlever après)
-    if (key === 'v') {
-        e.preventDefault();
-        menuManager.showVictory({
-            hp: 200,
-            maxHp: 200,
-            mana: 200,
-            maxMana: 200,
-            spellsUnlocked: 10
-        });
-        return;
-    }
         
     
     // Ne rien faire si le jeu est en pause ou dans un menu

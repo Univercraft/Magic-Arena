@@ -65,7 +65,6 @@ Combattez une série de boss iconiques, débloquez des sorts puissants, et teste
 
 ### Système
 - **Échap** : Pause / Menu
-- **V** : Accès direct à l'écran de victoire (debug, à retirer)
 
 ## 🚀 Installation
 
@@ -97,7 +96,7 @@ npm run preview
 
 Le projet est automatiquement déployé sur GitHub Pages via GitHub Actions.
 
-**URL de démo :** `https://<votre-username>.github.io/<nom-du-repo>/`
+**🎮 JOUER EN LIGNE :** https://univercraft.github.io/Magic-Arena/
 
 ### Configuration manuelle
 
