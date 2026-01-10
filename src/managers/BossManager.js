@@ -26,7 +26,7 @@ export class BossManager {
                 size: { x: 1.5, y: 3, z: 1.5 }, // Hitbox augmentée
                 position: { x: 0, y: 0, z: -10 },
                 rewardSpell: 'incendio',
-                modelPath: '/models/Animated Wizard.glb',
+                modelPath: '/models/AnimatedWizard.glb',
                 modelScale: 1.0 // Taille normale du modèle
             },
             {
@@ -62,7 +62,7 @@ export class BossManager {
                 position: { x: 0, y: 0, z: -15 },
                 rewardSpell: null,
                 stopAtHpPercent: 0.5, // Arrêt à 50% de vie
-                modelPath: '/models/Animated Wizard.glb',
+                modelPath: '/models/AnimatedWizard.glb',
                 modelScale: 1.1,
                 modelColor: 0x0f0f0f // Noir très foncé (presque noir)
             },
@@ -99,7 +99,7 @@ export class BossManager {
                 size: { x: 1.2, y: 2.5, z: 1.2 },
                 position: { x: 0, y: 0, z: -15 },
                 rewardSpell: null,
-                modelPath: '/models/Animated Wizard.glb',
+                modelPath: '/models/AnimatedWizard.glb',
                 modelScale: 1.2,
                 modelColor: 0x3a3a3a // Gris foncé
             }
