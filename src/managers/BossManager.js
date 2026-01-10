@@ -26,7 +26,7 @@ export class BossManager {
                 size: { x: 1.5, y: 3, z: 1.5 }, // Hitbox augmentée
                 position: { x: 0, y: 0, z: -10 },
                 rewardSpell: 'incendio',
-                modelPath: '/models/AnimatedWizard.glb',
+                modelPath: 'models/AnimatedWizard.glb',
                 modelScale: 1.0 // Taille normale du modèle
             },
             {
@@ -38,7 +38,7 @@ export class BossManager {
                 size: { x: 2, y: 2, z: 4 }, // Hitbox augmentée pour basilic
                 position: { x: 0, y: 0, z: -12 },
                 rewardSpell: null,
-                modelPath: '/models/Snake.glb',
+                modelPath: 'models/Snake.glb',
                 modelScale: 1.0 // Taille normale
             },
             {
@@ -50,7 +50,7 @@ export class BossManager {
                 size: { x: 0.8, y: 1.5, z: 0.8 },
                 position: { x: 0, y: 0, z: -10 },
                 rewardSpell: 'stupefix',
-                modelPath: '/models/Ghost.glb'
+                modelPath: 'models/Ghost.glb'
             },
             {
                 name: 'Voldemort',
@@ -62,7 +62,7 @@ export class BossManager {
                 position: { x: 0, y: 0, z: -15 },
                 rewardSpell: null,
                 stopAtHpPercent: 0.5, // Arrêt à 50% de vie
-                modelPath: '/models/AnimatedWizard.glb',
+                modelPath: 'models/AnimatedWizard.glb',
                 modelScale: 1.1,
                 modelColor: 0x0f0f0f // Noir très foncé (presque noir)
             },
@@ -75,7 +75,7 @@ export class BossManager {
                 size: { x: 1, y: 1.8, z: 1 },
                 position: { x: 0, y: 0, z: -10 },
                 rewardSpell: 'protegoMaxima',
-                modelPath: '/models/Witch.glb',
+                modelPath: 'models/Witch.glb',
                 modelScale: 1.0,
                 modelColor: 0xff69b4 // Rose vif pour Ombrage
             },
@@ -88,7 +88,7 @@ export class BossManager {
                 size: { x: 0.9, y: 1.9, z: 0.9 },
                 position: { x: 0, y: 0, z: -10 },
                 rewardSpell: 'sectumsempra',
-                modelPath: '/models/Witch.glb'
+                modelPath: 'models/Witch.glb'
             },
             {
                 name: 'Voldemort Final',
@@ -99,7 +99,7 @@ export class BossManager {
                 size: { x: 1.2, y: 2.5, z: 1.2 },
                 position: { x: 0, y: 0, z: -15 },
                 rewardSpell: null,
-                modelPath: '/models/AnimatedWizard.glb',
+                modelPath: 'models/AnimatedWizard.glb',
                 modelScale: 1.2,
                 modelColor: 0x3a3a3a // Gris foncé
             }
