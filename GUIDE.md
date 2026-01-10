@@ -140,12 +140,18 @@ Appuyez sur **E** à proximité pour les ramasser.
   - Réduit immédiatement les HP du boss à 0
   - Déclenche l'animation de mort
   - Passe au boss suivant
+  - ℹ️ Appuyez 7 fois pour terminer tous les boss
+
+- **V** : Terminer instantanément le jeu
+  - Affiche directement l'écran de victoire finale
+  - Termine toute la partie en une seule touche
+  - Utile pour tester l'écran de fin rapidement
 
 ### 📝 Note
-Il n'existe pas de touche pour "finir instantanément la manche" car le jeu est conçu pour être joué de manière progressive. Cependant, vous pouvez :
-1. Utiliser **B** pour tuer chaque boss un par un
-2. Utiliser le **mode INFINI** après avoir complété le mode DIFFICILE
-3. Ajuster la difficulté dans le menu principal
+Pour tester rapidement :
+1. **Touche V** : Pour voir l'écran de victoire immédiatement
+2. **Touche B** : Pour progresser boss par boss et tester chaque combat
+3. Utilisez le **mode INFINI** après avoir complété le mode DIFFICILE pour un défi sans fin
 
 ---
 
