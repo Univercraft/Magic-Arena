@@ -23,9 +23,11 @@ export class BossManager {
                 speed: 1,
                 damage: 10,
                 color: 0x8B00FF,
-                size: { x: 1, y: 2, z: 1 },
-                position: { x: 0, y: 1, z: -10 },
-                rewardSpell: 'incendio'
+                size: { x: 1.5, y: 3, z: 1.5 }, // Hitbox augmentée
+                position: { x: 0, y: 0, z: -10 },
+                rewardSpell: 'incendio',
+                modelPath: '/src/assets/models/Animated Wizard.glb',
+                modelScale: 1.0 // Taille normale du modèle
             },
             {
                 name: 'Basilic',
@@ -33,9 +35,11 @@ export class BossManager {
                 speed: 1.8,
                 damage: 15,
                 color: 0x00ff00,
-                size: { x: 1.5, y: 1, z: 3 },
-                position: { x: 0, y: 0.5, z: -12 },
-                rewardSpell: null
+                size: { x: 2, y: 2, z: 4 }, // Hitbox augmentée pour basilic
+                position: { x: 0, y: 0, z: -12 },
+                rewardSpell: null,
+                modelPath: '/src/assets/models/Snake.glb',
+                modelScale: 1.0 // Taille normale
             },
             {
                 name: 'Dementor',
@@ -44,19 +48,23 @@ export class BossManager {
                 damage: 20,
                 color: 0x363535,
                 size: { x: 0.8, y: 1.5, z: 0.8 },
-                position: { x: 0, y: 0.75, z: -10 },
-                rewardSpell: 'stupefix'
+                position: { x: 0, y: 0, z: -10 },
+                rewardSpell: 'stupefix',
+                modelPath: '/src/assets/models/Ghost.glb'
             },
             {
-                name: 'Voldemort Part 1',
+                name: 'Voldemort',
                 hp: 1500,
                 speed: 1.5,
                 damage: 30,
-                color: 0x330033,
+                color: 0x000000,
                 size: { x: 1, y: 2.2, z: 1 },
-                position: { x: 0, y: 1.1, z: -15 },
+                position: { x: 0, y: 0, z: -15 },
                 rewardSpell: null,
-                stopAtHpPercent: 0.5 // Arrêt à 50% de vie
+                stopAtHpPercent: 0.5, // Arrêt à 50% de vie
+                modelPath: '/src/assets/models/Animated Wizard.glb',
+                modelScale: 1.1,
+                modelColor: 0x0f0f0f // Noir très foncé (presque noir)
             },
             {
                 name: 'Ombrage',
@@ -65,8 +73,11 @@ export class BossManager {
                 damage: 25,
                 color: 0xff1493,
                 size: { x: 1, y: 1.8, z: 1 },
-                position: { x: 0, y: 0.9, z: -10 },
-                rewardSpell: 'protegoMaxima'
+                position: { x: 0, y: 0, z: -10 },
+                rewardSpell: 'protegoMaxima',
+                modelPath: '/src/assets/models/Witch.glb',
+                modelScale: 1.0,
+                modelColor: 0xff69b4 // Rose vif pour Ombrage
             },
             {
                 name: 'Bellatrix',
@@ -75,18 +86,22 @@ export class BossManager {
                 damage: 35,
                 color: 0x808080,
                 size: { x: 0.9, y: 1.9, z: 0.9 },
-                position: { x: 0, y: 0.95, z: -10 },
-                rewardSpell: 'sectumsempra'
+                position: { x: 0, y: 0, z: -10 },
+                rewardSpell: 'sectumsempra',
+                modelPath: '/src/assets/models/Witch.glb'
             },
             {
                 name: 'Voldemort Final',
                 hp: 1500,
                 speed: 2,
                 damage: 50,
-                color: 0xE0E0E0,
+                color: 0x2a2a2a,
                 size: { x: 1.2, y: 2.5, z: 1.2 },
-                position: { x: 0, y: 1.25, z: -15 },
-                rewardSpell: null
+                position: { x: 0, y: 0, z: -15 },
+                rewardSpell: null,
+                modelPath: '/src/assets/models/Animated Wizard.glb',
+                modelScale: 1.2,
+                modelColor: 0x3a3a3a // Gris foncé
             }
         ];
     }

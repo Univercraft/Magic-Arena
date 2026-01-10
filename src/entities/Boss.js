@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { loadModel } from '../loaders.js';
 
 export class Boss {
     constructor(scene, config) {
@@ -12,10 +13,16 @@ export class Boss {
         this.isDead = false;
         this.isDefeated = false; // Nouveau: pour les combats qui s'arrêtent avant la mort
         this.stopAtHpPercent = config.stopAtHpPercent || null; // Nouveau: arrêt à X% de vie
-        
-        this.createMesh(config.color || 0xff0000, config.size || { x: 1, y: 2, z: 1 });
-        this.position = config.position || { x: 0, y: 1, z: -10 };
-        this.mesh.position.set(this.position.x, this.position.y, this.position.z);
+        this.modelPath = config.modelPath || null; // Chemin du modèle 3D
+        this.modelScale = config.modelScale || 1; // Échelle du modèle 3D
+        this.modelColor = config.modelColor || null; // Couleur personnalisée pour le modèle
+        this.customColors = config.customColors || null; // Couleurs par parties du corps
+        this.mesh = null; // Sera créé de manière asynchrone
+        this.hitbox = null; // Hitbox pour les collisions
+        this.mixer = null; // Pour les animations
+        this.animations = {}; // Stockage des animations (walk, punch, etc.)
+        this.currentAction = null; // Action en cours
+        this.hasModel = false; // Indique si un modèle 3D est chargé
         
         // Effets actifs
         this.stunEndTime = 0;
@@ -23,10 +30,139 @@ export class Boss {
         this.dotEffects = [];
         this.originalColor = config.color || 0xff0000;
         
+        this.position = config.position || { x: 0, y: 1, z: -10 };
+        
+        // Créer le mesh (avec modèle 3D si disponible)
+        this.createMesh(config.color || 0xff0000, config.size || { x: 1, y: 2, z: 1 });
+        
         console.log(`🎭 Boss créé: ${this.name} (${this.hp} HP)`);
     }
 
-    createMesh(color, size) {
+    async createMesh(color, size) {
+        // Si un modèle 3D est disponible, le charger
+        if (this.modelPath) {
+            try {
+                console.log(`🔍 Chargement du modèle pour ${this.name}:`, this.modelPath);
+                const { model, animations } = await loadModel(this.modelPath);
+                
+                this.mesh = model;
+                this.mesh.position.set(this.position.x, this.position.y, this.position.z);
+                
+                // Appliquer le scale au modèle
+                if (this.modelScale !== 1) {
+                    this.mesh.scale.setScalar(this.modelScale);
+                    console.log(`🔍 Scale appliqué pour ${this.name}:`, this.modelScale);
+                }
+                
+                // Appliquer des couleurs personnalisées par parties du corps
+                if (this.customColors !== null) {
+                    // D'abord, tout colorier en noir (vêtements)
+                    if (this.customColors.clothes) {
+                        this.mesh.traverse((child) => {
+                            if (child.isMesh && child.material) {
+                                if (child.material.color) {
+                                    child.material.color.setHex(this.customColors.clothes);
+                                }
+                            }
+                        });
+                    }
+                    
+                    // Ensuite, appliquer les couleurs spécifiques par-dessus
+                    this.mesh.traverse((child) => {
+                        if (child.isMesh && child.material) {
+                            const meshName = child.name.toLowerCase();
+                            
+                            // Peau : Face uniquement
+                            if (meshName.includes('face')) {
+                                if (this.customColors.skin && child.material.color) {
+                                    child.material.color.setHex(this.customColors.skin);
+                                    console.log(`🎨 Peau colorée pour ${child.name}: #${this.customColors.skin.toString(16)}`);
+                                }
+                            } 
+                            // Yeux - rechercher plus largement
+                            if (meshName.includes('eye')) {
+                                if (this.customColors.eyes && child.material.color) {
+                                    child.material.color.setHex(this.customColors.eyes);
+                                    // Ajouter de l'émissif pour les yeux rouges
+                                    if (child.material.emissive) {
+                                        child.material.emissive.setHex(this.customColors.eyes);
+                                        child.material.emissiveIntensity = 1.0;
+                                    }
+                                    console.log(`👁️ Yeux colorés pour ${child.name}: #${this.customColors.eyes.toString(16)}`);
+                                }
+                            }
+                        }
+                    });
+                    console.log(`🎨 Couleurs personnalisées appliquées pour ${this.name}`);
+                }
+                // Appliquer une couleur uniforme si spécifiée (pour les autres boss)
+                else if (this.modelColor !== null) {
+                    this.mesh.traverse((child) => {
+                        if (child.isMesh && child.material) {
+                            if (child.material.color) {
+                                child.material.color.setHex(this.modelColor);
+                            }
+                        }
+                    });
+                    console.log(`🎨 Couleur appliquée pour ${this.name}:`, this.modelColor.toString(16));
+                }
+                
+                // Calculer la taille du modèle après scale
+                const box = new THREE.Box3().setFromObject(model);
+                const modelSize = box.getSize(new THREE.Vector3());
+                console.log(`📏 Taille du modèle ${this.name}:`, modelSize);
+                
+                this.hasModel = true;
+                
+                // Créer une hitbox invisible pour les collisions (utilise size)
+                const hitboxGeometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+                const hitboxMaterial = new THREE.MeshBasicMaterial({ 
+                    visible: false // Invisible mais détectable pour les collisions
+                });
+                this.hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+                this.mesh.add(this.hitbox); // Attacher au modèle pour qu'elle suive
+                
+                // Configurer les animations si disponibles
+                if (animations && animations.length > 0) {
+                    this.mixer = new THREE.AnimationMixer(model);
+                    
+                    // Rechercher et stocker les animations par nom
+                    animations.forEach((clip, index) => {
+                        const name = clip.name.toLowerCase();
+                        if (name.includes('walk') || name.includes('run') || name.includes('idle') || index === 0) {
+                            this.animations.walk = this.mixer.clipAction(clip);
+                        }
+                        if (name.includes('punch') || name.includes('attack') || name.includes('hit')) {
+                            this.animations.punch = this.mixer.clipAction(clip);
+                        }
+                    });
+                    
+                    // Jouer l'animation de marche par défaut
+                    if (this.animations.walk) {
+                        this.animations.walk.play();
+                        this.currentAction = this.animations.walk;
+                    }
+                    
+                    console.log(`🎬 Animations disponibles pour ${this.name}:`, Object.keys(this.animations));
+                }
+                
+                this.scene.add(this.mesh);
+                
+                // Barre de vie au-dessus du modèle
+                this.createHealthBar();
+                
+                console.log(`✅ Modèle 3D chargé pour ${this.name}`);
+            } catch (error) {
+                console.warn(`⚠️ Impossible de charger le modèle pour ${this.name}, utilisation d'un cube`, error);
+                this.createFallbackMesh(color, size);
+            }
+        } else {
+            // Pas de modèle 3D, utiliser un cube simple
+            this.createFallbackMesh(color, size);
+        }
+    }
+    
+    createFallbackMesh(color, size) {
         const geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
         const material = new THREE.MeshStandardMaterial({ 
             color: color,
@@ -35,6 +171,7 @@ export class Boss {
         });
         
         this.mesh = new THREE.Mesh(geometry, material);
+        this.mesh.position.set(this.position.x, this.position.y, this.position.z);
         this.scene.add(this.mesh);
         
         // Barre de vie au-dessus
@@ -49,7 +186,17 @@ export class Boss {
         const bgGeometry = new THREE.PlaneGeometry(barWidth, barHeight);
         const bgMaterial = new THREE.MeshBasicMaterial({ color: 0x330000 });
         this.hpBarBg = new THREE.Mesh(bgGeometry, bgMaterial);
-        this.hpBarBg.position.y = 2.5;
+        
+        // Pour les modèles 3D avec hitbox, positionner au-dessus de la hitbox
+        if (this.hasModel && this.hitbox) {
+            // Calculer la hauteur de la hitbox
+            const box = new THREE.Box3().setFromObject(this.hitbox);
+            const height = box.max.y - box.min.y;
+            this.hpBarBg.position.y = height / 2 + 1.5; // Plus haut au-dessus de la hitbox
+        } else {
+            this.hpBarBg.position.y = 2.5; // Position par défaut
+        }
+        
         this.mesh.add(this.hpBarBg);
         
         // Foreground
@@ -61,6 +208,8 @@ export class Boss {
     }
 
     updateHealthBar() {
+        if (!this.hpBarFg || !this.hpBarBg) return;
+        
         const hpPercent = Math.max(0, this.hp / this.maxHp);
         this.hpBarFg.scale.x = hpPercent;
         this.hpBarFg.position.x = -(1 - hpPercent);
@@ -72,11 +221,26 @@ export class Boss {
         this.hp -= amount;
         this.updateHealthBar();
         
-        // Flash effect
-        this.mesh.material.emissiveIntensity = 0.8;
-        setTimeout(() => {
-            if (this.mesh) this.mesh.material.emissiveIntensity = 0.3;
-        }, 100);
+        // Flash effect - compatible avec les modèles 3D
+        if (this.mesh) {
+            this.mesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    const originalEmissive = child.material.emissive ? child.material.emissive.clone() : new THREE.Color(0x000000);
+                    const originalIntensity = child.material.emissiveIntensity || 0;
+                    
+                    if (child.material.emissive) {
+                        child.material.emissiveIntensity = 0.8;
+                    }
+                    
+                    setTimeout(() => {
+                        if (child.material && child.material.emissive) {
+                            child.material.emissive.copy(originalEmissive);
+                            child.material.emissiveIntensity = originalIntensity;
+                        }
+                    }, 100);
+                }
+            });
+        }
         
         console.log(`💥 ${this.name} prend ${amount} dégâts (${this.hp}/${this.maxHp} HP)`);
         
@@ -132,10 +296,20 @@ export class Boss {
     stun(duration) {
         this.stunEndTime = Date.now() + duration;
         
-        // Changer la couleur en bleu pendant le stun
-        this.mesh.material.color.setHex(0x4444ff);
-        this.mesh.material.emissive.setHex(0x4444ff);
-        this.mesh.material.emissiveIntensity = 0.6;
+        // Changer la couleur en bleu pendant le stun - uniquement pour les cubes
+        if (this.mesh && !this.hasModel) {
+            this.mesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    if (child.material.color) {
+                        child.material.color.setHex(0x4444ff);
+                    }
+                    if (child.material.emissive) {
+                        child.material.emissive.setHex(0x4444ff);
+                        child.material.emissiveIntensity = 0.6;
+                    }
+                }
+            });
+        }
         
         console.log(`😵 ${this.name} étourdi pour ${duration / 1000}s`);
     }
@@ -144,10 +318,20 @@ export class Boss {
         const now = Date.now();
         
         if (now >= this.stunEndTime && this.stunEndTime > 0) {
-            // Restaurer la couleur originale
-            this.mesh.material.color.setHex(this.originalColor);
-            this.mesh.material.emissive.setHex(this.originalColor);
-            this.mesh.material.emissiveIntensity = 0.3;
+            // Restaurer la couleur originale - uniquement pour les cubes
+            if (this.mesh && !this.hasModel) {
+                this.mesh.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        if (child.material.color) {
+                            child.material.color.setHex(this.originalColor);
+                        }
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(this.originalColor);
+                            child.material.emissiveIntensity = 0.3;
+                        }
+                    }
+                });
+            }
             this.stunEndTime = 0;
             console.log(`✅ ${this.name} n'est plus étourdi`);
         }
@@ -176,7 +360,7 @@ export class Boss {
     }
 
     moveTowards(targetPosition, delta) {
-        if (this.isStunned() || this.isPacified() || this.isDead) return;
+        if (!this.mesh || this.isStunned() || this.isPacified() || this.isDead) return;
         
         const direction = new THREE.Vector3();
         direction.subVectors(targetPosition, this.mesh.position);
@@ -216,13 +400,40 @@ export class Boss {
     }
 
     update(delta, playerPosition) {
-        if (this.isDead || this.isDefeated) return;
+        if (this.isDead || this.isDefeated || !this.mesh) return;
+        
+        // Mettre à jour l'animation si disponible
+        if (this.mixer) {
+            this.mixer.update(delta);
+        }
         
         this.updateDots();
         
         // Vérifier le stun et pacify à chaque frame
         const stunned = this.isStunned();
         const pacified = this.isPacified();
+        
+        // Calculer la distance au joueur
+        const distance = this.getDistanceToPlayer(playerPosition);
+        
+        // Gérer les animations pour Quirrell (et autres boss avec animations)
+        if (this.animations.punch && this.animations.walk) {
+            if (distance < 2 && !stunned && !pacified) {
+                // Proche du joueur : animation de punch
+                if (this.currentAction !== this.animations.punch) {
+                    this.animations.walk.fadeOut(0.2);
+                    this.animations.punch.reset().fadeIn(0.2).play();
+                    this.currentAction = this.animations.punch;
+                }
+            } else {
+                // Loin du joueur : animation de marche
+                if (this.currentAction !== this.animations.walk) {
+                    if (this.animations.punch) this.animations.punch.fadeOut(0.2);
+                    this.animations.walk.reset().fadeIn(0.2).play();
+                    this.currentAction = this.animations.walk;
+                }
+            }
+        }
         
         // Ne bouger que si pas étourdi et pas pacifié
         if (!stunned && !pacified) {
@@ -231,22 +442,43 @@ export class Boss {
         
         // Faire face au joueur (même étourdi/pacifié)
         if (this.mesh) {
-            this.mesh.lookAt(playerPosition);
-            this.mesh.rotation.x = 0;
-            this.mesh.rotation.z = 0;
+            // Pour les modèles 3D, calculer l'angle vers le joueur manuellement
+            if (this.hasModel) {
+                const direction = new THREE.Vector3();
+                direction.subVectors(playerPosition, this.mesh.position);
+                direction.y = 0; // Garder seulement la rotation horizontale
+                direction.normalize();
+                
+                // Calculer l'angle et appliquer la rotation sur l'axe Y
+                const angle = Math.atan2(direction.x, direction.z);
+                this.mesh.rotation.y = angle;
+            } else {
+                // Pour les cubes, utiliser lookAt
+                this.mesh.lookAt(playerPosition);
+                this.mesh.rotation.x = 0;
+                this.mesh.rotation.z = 0;
+            }
             
             // Animation de tremblement si étourdi
             if (stunned) {
                 this.mesh.rotation.z = Math.sin(Date.now() * 0.01) * 0.1;
             }
-            // Animation de rotation lente si pacifié
-            else if (pacified) {
-                this.mesh.material.emissive = new THREE.Color(0x9400D3);
-                this.mesh.material.emissiveIntensity = 0.5;
-            } else {
-                // Restaurer la couleur normale
-                this.mesh.material.emissive = new THREE.Color(this.originalColor);
-                this.mesh.material.emissiveIntensity = 0.3;
+            // Effets de couleur uniquement pour les cubes (pas les modèles 3D)
+            else if (pacified && !this.hasModel) {
+                this.mesh.traverse((child) => {
+                    if (child.isMesh && child.material && child.material.emissive) {
+                        child.material.emissive = new THREE.Color(0x9400D3);
+                        child.material.emissiveIntensity = 0.5;
+                    }
+                });
+            } else if (!this.hasModel) {
+                // Restaurer la couleur normale uniquement pour les cubes
+                this.mesh.traverse((child) => {
+                    if (child.isMesh && child.material && child.material.emissive) {
+                        child.material.emissive = new THREE.Color(this.originalColor);
+                        child.material.emissiveIntensity = 0.3;
+                    }
+                });
             }
         }
     }
@@ -257,6 +489,8 @@ export class Boss {
 
     getDistanceToPlayer(playerPosition) {
         if (!this.mesh) return Infinity;
+        
+        // Pour les modèles 3D et les cubes, utiliser la position du mesh
         return this.mesh.position.distanceTo(playerPosition);
     }
 }

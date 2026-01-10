@@ -436,6 +436,18 @@ document.addEventListener('keydown', (e) => {
             menuManager.showVictory(stats);
         }
     }
+    
+    // Touche B pour tuer instantanément le boss actuel (mode debug)
+    if (key === 'b') {
+        e.preventDefault();
+        if (bossManager.currentBoss && !bossManager.currentBoss.isDead) {
+            console.log('💀 Touche B : Tuer le boss actuel instantanément');
+            bossManager.currentBoss.hp = 0;
+            bossManager.currentBoss.die();
+        } else {
+            console.log('⚠️ Aucun boss actif à tuer');
+        }
+    }
 });
 
 document.addEventListener('keyup', (e) => {
@@ -534,9 +546,24 @@ function animate() {
     // Collision avec le boss (seulement si pas en pause)
     const boss = bossManager.getCurrentBoss();
     if (!isWheelOpen && !menuManager.isPaused && boss && !boss.isDead && !boss.isDefeated) {
+        const distance = boss.getDistanceToPlayer(player.camera.position);
+        
+        // Debug : afficher la distance occasionnellement
+        if (Math.random() < 0.01) {
+            console.log(`📏 Distance au boss ${boss.name}: ${distance.toFixed(2)}m`);
+        }
+        
+        // Augmenter la distance d'attaque à 3m pour les modèles 3D
+        const attackRange = boss.hasModel ? 3.0 : 1.5;
+        
         // Ne pas prendre de dégâts si le boss est pacifié (Impero)
-        if (!boss.isPacified() && boss.getDistanceToPlayer(player.camera.position) < 1.5) {
-            player.takeDamage(boss.damage * delta);
+        if (!boss.isPacified() && distance < attackRange) {
+            const damageAmount = boss.damage * delta;
+            player.takeDamage(damageAmount);
+            // Log uniquement toutes les 60 frames pour ne pas spam la console
+            if (Math.random() < 0.016) {
+                console.log(`👊 ${boss.name} attaque ! Distance: ${distance.toFixed(2)}m, Dégâts: ${damageAmount.toFixed(1)}`);
+            }
         }
     }
 
