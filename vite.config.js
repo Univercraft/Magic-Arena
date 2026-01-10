@@ -4,7 +4,7 @@ import vue from '@vitejs/plugin-vue'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
-  base: './', // Pour GitHub Pages
+  base: '/Magic-Arena/', // Pour GitHub Pages
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
