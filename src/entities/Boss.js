@@ -24,6 +24,14 @@ export class Boss {
         this.currentAction = null; // Action en cours
         this.hasModel = false; // Indique si un modèle 3D est chargé
         
+        // Système d'attaque à distance
+        this.canCastSpells = config.canCastSpells || false; // Si le boss peut lancer des sorts
+        this.spellCooldown = config.spellCooldown || 2000; // Cooldown entre les sorts (ms)
+        this.lastSpellTime = 0; // Dernier lancement de sort
+        this.spellSpeed = config.spellSpeed || 10; // Vitesse des projectiles
+        this.spellColor = config.spellColor || 0xff0000; // Couleur des sorts
+        this.projectiles = []; // Projectiles actifs du boss
+        
         // Effets actifs
         this.stunEndTime = 0;
         this.pacifyEndTime = 0; // Pour Impero
@@ -35,7 +43,7 @@ export class Boss {
         // Créer le mesh (avec modèle 3D si disponible)
         this.createMesh(config.color || 0xff0000, config.size || { x: 1, y: 2, z: 1 });
         
-        console.log(`🎭 Boss créé: ${this.name} (${this.hp} HP)`);
+        console.log(`🎭 Boss créé: ${this.name} (${this.hp} HP)${this.canCastSpells ? ' 🔮 (Lance des sorts)' : ''}`);
     }
 
     async createMesh(color, size) {
@@ -367,7 +375,76 @@ export class Boss {
         direction.y = 0;
         direction.normalize();
         
-        this.mesh.position.add(direction.multiplyScalar(this.speed * delta));
+        // Si le boss peut lancer des sorts, il se déplace plus lentement
+        const speedMultiplier = this.canCastSpells ? 0.5 : 1.0;
+        this.mesh.position.add(direction.multiplyScalar(this.speed * speedMultiplier * delta));
+    }
+    
+    castSpell(targetPosition) {
+        if (!this.canCastSpells || !this.mesh) return;
+        
+        const now = Date.now();
+        if (now - this.lastSpellTime < this.spellCooldown) return;
+        
+        this.lastSpellTime = now;
+        
+        // Créer un projectile
+        const projectile = new THREE.Mesh(
+            new THREE.SphereGeometry(0.2, 16, 16),
+            new THREE.MeshBasicMaterial({ 
+                color: this.spellColor,
+                emissive: this.spellColor,
+                emissiveIntensity: 0.8
+            })
+        );
+        
+        // Position de départ : position du boss + légèrement devant
+        const startPos = this.mesh.position.clone();
+        startPos.y += 1.5; // Hauteur de lancement
+        projectile.position.copy(startPos);
+        
+        // Direction vers le joueur
+        const direction = new THREE.Vector3();
+        direction.subVectors(targetPosition, startPos);
+        direction.normalize();
+        
+        // Stocker les données du projectile
+        projectile.userData = {
+            velocity: direction.multiplyScalar(this.spellSpeed),
+            damage: this.damage,
+            boss: this
+        };
+        
+        this.scene.add(projectile);
+        this.projectiles.push(projectile);
+        
+        console.log(`✨ ${this.name} lance un sort ! (${this.damage} dégâts)`);
+    }
+    
+    updateProjectiles(delta, playerPosition, playerHitRadius = 0.5) {
+        for (let i = this.projectiles.length - 1; i >= 0; i--) {
+            const proj = this.projectiles[i];
+            
+            // Déplacer le projectile
+            proj.position.add(proj.userData.velocity.clone().multiplyScalar(delta));
+            
+            // Vérifier la collision avec le joueur
+            const distance = proj.position.distanceTo(playerPosition);
+            if (distance < playerHitRadius) {
+                // Touché !
+                this.scene.remove(proj);
+                this.projectiles.splice(i, 1);
+                return { hit: true, damage: proj.userData.damage };
+            }
+            
+            // Supprimer si trop loin (> 50 unités)
+            if (proj.position.distanceTo(this.mesh.position) > 50) {
+                this.scene.remove(proj);
+                this.projectiles.splice(i, 1);
+            }
+        }
+        
+        return { hit: false, damage: 0 };
     }
 
     die() {
@@ -397,6 +474,12 @@ export class Boss {
             this.scene.remove(this.mesh);
             this.mesh = null;
         }
+        
+        // Supprimer tous les projectiles actifs
+        for (const proj of this.projectiles) {
+            this.scene.remove(proj);
+        }
+        this.projectiles = [];
     }
 
     update(delta, playerPosition) {
@@ -416,21 +499,35 @@ export class Boss {
         // Calculer la distance au joueur
         const distance = this.getDistanceToPlayer(playerPosition);
         
-        // Gérer les animations pour Quirrell (et autres boss avec animations)
+        // Lancer des sorts si le boss en est capable (et pas trop proche)
+        if (this.canCastSpells && !stunned && !pacified && distance > 3 && distance < 20) {
+            this.castSpell(playerPosition);
+        }
+        
+        // Gérer les animations pour les boss avec animations
         if (this.animations.punch && this.animations.walk) {
-            if (distance < 2 && !stunned && !pacified) {
-                // Proche du joueur : animation de punch
-                if (this.currentAction !== this.animations.punch) {
-                    this.animations.walk.fadeOut(0.2);
-                    this.animations.punch.reset().fadeIn(0.2).play();
-                    this.currentAction = this.animations.punch;
-                }
-            } else {
-                // Loin du joueur : animation de marche
+            // Pour les boss qui lancent des sorts, pas d'animation de punch
+            if (this.canCastSpells) {
+                // Toujours en mode marche
                 if (this.currentAction !== this.animations.walk) {
                     if (this.animations.punch) this.animations.punch.fadeOut(0.2);
                     this.animations.walk.reset().fadeIn(0.2).play();
                     this.currentAction = this.animations.walk;
+                }
+            } else {
+                // Boss au corps à corps : punch quand proche, sinon marche
+                if (distance < 2 && !stunned && !pacified) {
+                    if (this.currentAction !== this.animations.punch) {
+                        this.animations.walk.fadeOut(0.2);
+                        this.animations.punch.reset().fadeIn(0.2).play();
+                        this.currentAction = this.animations.punch;
+                    }
+                } else {
+                    if (this.currentAction !== this.animations.walk) {
+                        if (this.animations.punch) this.animations.punch.fadeOut(0.2);
+                        this.animations.walk.reset().fadeIn(0.2).play();
+                        this.currentAction = this.animations.walk;
+                    }
                 }
             }
         }

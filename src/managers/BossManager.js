@@ -56,7 +56,7 @@ export class BossManager {
                 name: 'Voldemort',
                 hp: 1500,
                 speed: 1.5,
-                damage: 30,
+                damage: 75,
                 color: 0x000000,
                 size: { x: 1, y: 2.2, z: 1 },
                 position: { x: 0, y: 0, z: -15 },
@@ -64,44 +64,60 @@ export class BossManager {
                 stopAtHpPercent: 0.5, // Arrêt à 50% de vie
                 modelPath: 'models/AnimatedWizard.glb',
                 modelScale: 1.1,
-                modelColor: 0x0f0f0f // Noir très foncé (presque noir)
+                modelColor: 0x0f0f0f, // Noir très foncé (presque noir)
+                canCastSpells: true,
+                spellCooldown: 2500,
+                spellSpeed: 8,
+                spellColor: 0x00ff00 // Vert (Avada Kedavra)
             },
             {
                 name: 'Ombrage',
                 hp: 800,
                 speed: 1,
-                damage: 25,
+                damage: 50,
                 color: 0xff1493,
                 size: { x: 1, y: 1.8, z: 1 },
                 position: { x: 0, y: 0, z: -10 },
                 rewardSpell: 'protegoMaxima',
                 modelPath: 'models/Witch.glb',
                 modelScale: 1.0,
-                modelColor: 0xff69b4 // Rose vif pour Ombrage
+                modelColor: 0xff69b4, // Rose vif pour Ombrage
+                canCastSpells: true,
+                spellCooldown: 2000,
+                spellSpeed: 7,
+                spellColor: 0xff1493 // Rose
             },
             {
                 name: 'Bellatrix',
                 hp: 1000,
                 speed: 1.8,
-                damage: 35,
+                damage: 70,
                 color: 0x808080,
                 size: { x: 0.9, y: 1.9, z: 0.9 },
                 position: { x: 0, y: 0, z: -10 },
                 rewardSpell: 'sectumsempra',
-                modelPath: 'models/Witch.glb'
+                modelPath: 'models/Witch.glb',
+                canCastSpells: true,
+                spellCooldown: 1800,
+                spellSpeed: 9,
+                spellColor: 0x8800ff // Violet
             },
             {
                 name: 'Voldemort Final',
                 hp: 1500,
                 speed: 2,
-                damage: 50,
+                damage: 80,
                 color: 0x2a2a2a,
                 size: { x: 1.2, y: 2.5, z: 1.2 },
                 position: { x: 0, y: 0, z: -15 },
                 rewardSpell: null,
                 modelPath: 'models/AnimatedWizard.glb',
                 modelScale: 1.2,
-                modelColor: 0x3a3a3a // Gris foncé
+                modelColor: 0x3a3a3a, // Gris foncé
+                canCastSpells: true,
+                spellCooldown: 1500,
+                spellSpeed: 10,
+                spellColor: 0x00ff00 // Vert (Avada Kedavra)
             }
         ];
     }

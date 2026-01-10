@@ -553,11 +553,21 @@ function animate() {
             console.log(`📏 Distance au boss ${boss.name}: ${distance.toFixed(2)}m`);
         }
         
-        // Augmenter la distance d'attaque à 3m pour les modèles 3D
+        // Vérifier les projectiles du boss (si c'est un lanceur de sorts)
+        if (boss.canCastSpells) {
+            const hitResult = boss.updateProjectiles(delta, player.camera.position, 0.5);
+            if (hitResult.hit) {
+                player.takeDamage(hitResult.damage);
+                console.log(`🎯 ${boss.name} vous touche avec un sort ! Dégâts: ${hitResult.damage}`);
+            }
+        }
+        
+        // Attaque au corps à corps (seulement si le boss ne lance pas de sorts)
+        // ou s'il est très proche malgré ses sorts
         const attackRange = boss.hasModel ? 3.0 : 1.5;
         
         // Ne pas prendre de dégâts si le boss est pacifié (Impero)
-        if (!boss.isPacified() && distance < attackRange) {
+        if (!boss.isPacified() && distance < attackRange && !boss.canCastSpells) {
             const damageAmount = boss.damage * delta;
             player.takeDamage(damageAmount);
             // Log uniquement toutes les 60 frames pour ne pas spam la console
