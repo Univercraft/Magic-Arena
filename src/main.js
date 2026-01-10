@@ -101,15 +101,28 @@ menuManager.onStartCallback = () => {
     // Spawner le premier boss au démarrage
     bossManager.spawnBoss(0);
     updateCrosshairVisibility();
-    // document.body.requestPointerLock();
+    
+    // Activer le plein écran automatiquement
+    requestFullscreenAndPointerLock();
 };
 
 menuManager.onResumeCallback = () => {
     updateCrosshairVisibility();
-    // document.body.requestPointerLock();
+    // Réactiver le pointer lock
+    if (player.enablePointerLock) {
+        player.enablePointerLock();
+    }
 };
 
 menuManager.onQuitCallback = () => {
+    // Désactiver le pointer lock
+    if (player.disablePointerLock) {
+        player.disablePointerLock();
+    }
+    // Sortir du plein écran
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    }
     // Réinitialiser le jeu
     resetGame();
     // Reset le mode infini au retour au menu
@@ -117,6 +130,35 @@ menuManager.onQuitCallback = () => {
     menuManager.hardModeCompleted = false;
     updateCrosshairVisibility();
 };
+
+// Fonction pour activer le plein écran et le pointer lock
+function requestFullscreenAndPointerLock() {
+    // Demander le plein écran d'abord
+    const elem = document.documentElement;
+    if (elem.requestFullscreen) {
+        elem.requestFullscreen().then(() => {
+            console.log('📺 Mode plein écran activé');
+            // Une fois en plein écran, activer le pointer lock
+            setTimeout(() => {
+                if (player.enablePointerLock) {
+                    player.enablePointerLock();
+                }
+            }, 100);
+        }).catch(err => {
+            console.warn(`⚠️ Plein écran refusé: ${err.message}. Activation du pointer lock seul.`);
+            // Si le plein écran échoue, au moins activer le pointer lock
+            if (player.enablePointerLock) {
+                player.enablePointerLock();
+            }
+        });
+    } else {
+        console.warn('⚠️ Plein écran non supporté sur ce navigateur');
+        // Activer au moins le pointer lock
+        if (player.enablePointerLock) {
+            player.enablePointerLock();
+        }
+    }
+}
 
 function resetGame() {
     // Nettoyer les projectiles
@@ -509,7 +551,16 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-document.body.appendChild(renderer.domElement);
+
+// Ajouter des styles inline au canvas pour s'assurer qu'il prend tout l'espace
+const canvas = renderer.domElement;
+canvas.style.position = 'fixed';
+canvas.style.top = '0';
+canvas.style.left = '0';
+canvas.style.width = '100%';
+canvas.style.height = '100%';
+canvas.style.display = 'block';
+document.body.appendChild(canvas);
 
 // ANIMATE
 function animate() {
@@ -584,9 +635,38 @@ function animate() {
 
 animate();
 
-// RESIZE
-window.addEventListener("resize", () => {
-    player.camera.aspect = window.innerWidth / window.innerHeight;
+// RESIZE - S'adapter à la taille de la fenêtre/écran
+function handleResize() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    
+    // Mettre à jour le renderer
+    renderer.setSize(width, height, true); // true pour forcer la mise à jour
+    renderer.setPixelRatio(window.devicePixelRatio);
+    
+    // Mettre à jour la caméra
+    player.camera.aspect = width / height;
     player.camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // Forcer les styles du canvas
+    const canvas = renderer.domElement;
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    
+    console.log(`🖥️ Fenêtre redimensionnée: ${width}x${height}`);
+}
+
+window.addEventListener("resize", handleResize);
+
+// Gérer le changement de plein écran
+document.addEventListener('fullscreenchange', () => {
+    if (document.fullscreenElement) {
+        console.log('📺 Entré en mode plein écran');
+    } else {
+        console.log('📺 Sorti du mode plein écran');
+    }
+    // Forcer le redimensionnement immédiatement et après un délai
+    handleResize();
+    setTimeout(() => handleResize(), 100);
+    setTimeout(() => handleResize(), 300);
 });
