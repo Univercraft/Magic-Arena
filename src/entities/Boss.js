@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { loadModel } from '../loaders.js';
+import { Pathfinding } from '../utils/Pathfinding.js';
 
 export class Boss {
-    constructor(scene, config) {
+    constructor(scene, config, obstacleManager = null) {
         this.scene = scene;
         this.name = config.name;
         this.maxHp = config.hp;
@@ -23,6 +24,15 @@ export class Boss {
         this.animations = {}; // Stockage des animations (walk, punch, etc.)
         this.currentAction = null; // Action en cours
         this.hasModel = false; // Indique si un modèle 3D est chargé
+        this.obstacleManager = obstacleManager; // Gestionnaire d'obstacles pour les collisions
+        
+        // Système de pathfinding
+        this.pathfinding = obstacleManager ? new Pathfinding(obstacleManager, config.arenaSize || 100, 5) : null;
+        this.currentPath = null; // Chemin actuel à suivre
+        this.currentWaypoint = 0; // Index du waypoint actuel dans le chemin
+        this.pathUpdateInterval = 5000; // Recalculer le chemin toutes les 5 secondes (très optimisé)
+        this.lastPathUpdate = 0; // Dernier recalcul du chemin
+        this.waypointReachDistance = 2.0; // Distance pour considérer un waypoint atteint
         
         // Système d'attaque à distance
         this.canCastSpells = config.canCastSpells || false; // Si le boss peut lancer des sorts
@@ -370,14 +380,97 @@ export class Boss {
     moveTowards(targetPosition, delta) {
         if (!this.mesh || this.isStunned() || this.isPacified() || this.isDead) return;
         
-        const direction = new THREE.Vector3();
-        direction.subVectors(targetPosition, this.mesh.position);
-        direction.y = 0;
-        direction.normalize();
+        // OPTIMISATION : Ne pas bouger si le labyrinthe est en train de se transformer
+        if (this.obstacleManager && this.obstacleManager.isTransforming) {
+            return; // Attendre que les murs finissent de bouger
+        }
+        
+        const now = Date.now();
+        
+        let moveDirection = new THREE.Vector3();
+        
+        // Essayer d'utiliser le pathfinding si disponible
+        if (this.pathfinding) {
+            // Recalculer le chemin périodiquement
+            if (!this.currentPath || now - this.lastPathUpdate > this.pathUpdateInterval) {
+                this.currentPath = this.pathfinding.findPath(this.mesh.position, targetPosition);
+                this.currentWaypoint = 0;
+                this.lastPathUpdate = now;
+            }
+            
+            // Si on a un chemin valide, le suivre
+            if (this.currentPath && this.currentPath.length > 0) {
+                const waypoint = this.currentPath[this.currentWaypoint];
+                const distToWaypoint = this.mesh.position.distanceTo(waypoint);
+                
+                if (distToWaypoint < this.waypointReachDistance) {
+                    this.currentWaypoint++;
+                    if (this.currentWaypoint >= this.currentPath.length) {
+                        // Chemin terminé - maintenant aller directement vers la cible
+                        this.currentPath = null;
+                        // Ne pas retourner ! Continuer vers la cible directement
+                        moveDirection.subVectors(targetPosition, this.mesh.position);
+                    } else {
+                        const targetWaypoint = this.currentPath[this.currentWaypoint];
+                        moveDirection.subVectors(targetWaypoint, this.mesh.position);
+                    }
+                } else {
+                    const targetWaypoint = this.currentPath[this.currentWaypoint];
+                    moveDirection.subVectors(targetWaypoint, this.mesh.position);
+                }
+            } else {
+                // Pas de chemin trouvé, mouvement direct vers le joueur
+                moveDirection.subVectors(targetPosition, this.mesh.position);
+            }
+        } else {
+            // Pas de pathfinding, mouvement direct
+            moveDirection.subVectors(targetPosition, this.mesh.position);
+        }
+        
+        moveDirection.y = 0;
+        
+        // Vérifier que la direction est valide
+        if (moveDirection.length() < 0.01) return;
+        
+        moveDirection.normalize();
         
         // Si le boss peut lancer des sorts, il se déplace plus lentement
         const speedMultiplier = this.canCastSpells ? 0.5 : 1.0;
-        this.mesh.position.add(direction.multiplyScalar(this.speed * speedMultiplier * delta));
+        const movement = moveDirection.multiplyScalar(this.speed * speedMultiplier * delta);
+        
+        // Calculer la nouvelle position
+        const newPosition = this.mesh.position.clone().add(movement);
+        
+        // Vérifier les collisions avec les obstacles
+        if (this.obstacleManager) {
+            const collision = this.obstacleManager.checkCollision(newPosition, 1.0);
+            
+            // Vérifier que la position corrigée n'est pas trop loin (éviter téléportation)
+            const distanceMoved = this.mesh.position.distanceTo(collision.position);
+            const maxAllowedDistance = this.speed * speedMultiplier * delta * 1.5; // Max 1.5x le mouvement normal (réduit de 2x)
+            
+            if (distanceMoved > maxAllowedDistance) {
+                // La correction est trop grande, probablement bloqué - ne pas bouger
+                console.warn(`⚠️ ${this.name}: Correction de collision suspecte (${distanceMoved.toFixed(2)}m > ${maxAllowedDistance.toFixed(2)}m), annulation du mouvement`);
+                // Invalider le chemin actuel pour forcer un recalcul immédiat
+                this.currentPath = null;
+                this.lastPathUpdate = 0; // Forcer recalcul immédiat au prochain frame
+                return;
+            }
+            
+            // Si collision détectée, invalider le chemin pour forcer un recalcul
+            if (collision.collided) {
+                this.currentPath = null;
+                // Forcer un recalcul plus rapide en cas de collision répétée
+                if (now - this.lastPathUpdate > 1000) { // Si déjà 1s depuis dernier recalcul
+                    this.lastPathUpdate = 0; // Forcer recalcul immédiat
+                }
+            }
+            
+            this.mesh.position.copy(collision.position);
+        } else {
+            this.mesh.position.copy(newPosition);
+        }
     }
     
     castSpell(targetPosition) {

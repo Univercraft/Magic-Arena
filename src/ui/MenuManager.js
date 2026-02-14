@@ -21,6 +21,7 @@ export class MenuManager {
         this.createControlsScreen();
         this.createPauseMenu();
         this.createVictoryScreen();
+        this.createGameOverScreen();
     }
 
     createTitleScreen() {
@@ -813,4 +814,156 @@ export class MenuManager {
     hideVictory() {
         this.victoryScreen.style.display = 'none';
         this.isInMenu = false;
-    }}
+    }
+
+    createGameOverScreen() {
+        this.gameOverScreen = document.createElement('div');
+        this.gameOverScreen.id = 'gameover-screen';
+        this.gameOverScreen.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #1a0000 0%, #4d0000 50%, #8b0000 100%);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 4000;
+        `;
+
+        this.gameOverScreen.innerHTML = `
+            <div style="text-align: center; animation: gameOverFadeIn 1s ease-out;">
+                <h1 style="
+                    color: #ff0000;
+                    font-size: 96px;
+                    margin-bottom: 20px;
+                    text-shadow: 0 0 30px rgba(255, 0, 0, 1), 0 0 60px rgba(255, 0, 0, 0.6);
+                    font-family: 'Georgia', serif;
+                    animation: gameOverPulse 2s infinite;
+                ">💀 DÉFAITE 💀</h1>
+                
+                <p style="
+                    color: #ffffff;
+                    font-size: 32px;
+                    margin-bottom: 30px;
+                    opacity: 0.9;
+                ">Vous avez été vaincu...</p>
+                
+                <div id="gameover-stats" style="
+                    background: rgba(0, 0, 0, 0.5);
+                    padding: 30px;
+                    border-radius: 20px;
+                    margin-bottom: 40px;
+                    border: 3px solid #ff0000;
+                ">
+                    <h2 style="color: #ff6b6b; margin-bottom: 20px; font-size: 28px;">Votre aventure</h2>
+                    <div style="color: white; font-size: 20px; line-height: 2;">
+                        <div>⚔️ Boss vaincus: <span id="gameover-bosses" style="color: #ffd700; font-weight: bold;">0</span></div>
+                        <div>✨ Sorts débloqués: <span id="gameover-spells" style="color: #4ecdc4; font-weight: bold;">0</span></div>
+                    </div>
+                </div>
+                
+                <button id="btn-retry" style="
+                    width: 300px;
+                    padding: 20px 40px;
+                    font-size: 28px;
+                    font-weight: bold;
+                    color: white;
+                    background: linear-gradient(135deg, #ff6b35 0%, #ff4500 100%);
+                    border: 3px solid #ffd700;
+                    border-radius: 15px;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                    box-shadow: 0 5px 15px rgba(255, 107, 53, 0.6);
+                    margin-bottom: 20px;
+                ">🔄 RÉESSAYER</button>
+                
+                <button id="btn-menu-gameover" style="
+                    width: 300px;
+                    padding: 20px 40px;
+                    font-size: 28px;
+                    font-weight: bold;
+                    color: white;
+                    background: linear-gradient(135deg, #4169E1 0%, #1E3A8A 100%);
+                    border: 3px solid #ffd700;
+                    border-radius: 15px;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                    box-shadow: 0 5px 15px rgba(65, 105, 225, 0.6);
+                ">🏠 MENU PRINCIPAL</button>
+            </div>
+        `;
+
+        document.body.appendChild(this.gameOverScreen);
+
+        // Ajouter les animations CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes gameOverFadeIn {
+                from { opacity: 0; transform: scale(0.8); }
+                to { opacity: 1; transform: scale(1); }
+            }
+            @keyframes gameOverPulse {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.05); }
+            }
+        `;
+        if (!document.getElementById('gameover-animation-style')) {
+            style.id = 'gameover-animation-style';
+            document.head.appendChild(style);
+        }
+
+        // Effet hover pour les boutons
+        const buttons = this.gameOverScreen.querySelectorAll('button');
+        buttons.forEach(btn => {
+            btn.addEventListener('mouseenter', () => {
+                btn.style.transform = 'scale(1.1)';
+                btn.style.boxShadow = '0 10px 30px rgba(255, 215, 0, 0.8)';
+            });
+            btn.addEventListener('mouseleave', () => {
+                btn.style.transform = 'scale(1)';
+            });
+        });
+
+        // Event retry
+        this.gameOverScreen.querySelector('#btn-retry').addEventListener('click', () => {
+            this.hideGameOver();
+            // Redémarrer le jeu
+            if (this.onStartCallback) {
+                this.onStartCallback(this.difficulty);
+            }
+        });
+
+        // Event menu
+        this.gameOverScreen.querySelector('#btn-menu-gameover').addEventListener('click', () => {
+            this.hideGameOver();
+            // Retourner au menu principal
+            this.showTitleScreen();
+        });
+    }
+
+    showGameOver(stats) {
+        this.isInMenu = true;
+        this.isPaused = true;
+        this.gameOverScreen.style.display = 'flex';
+        
+        // Mettre à jour les stats
+        if (stats) {
+            document.getElementById('gameover-bosses').textContent = stats.bossesDefeated || 0;
+            document.getElementById('gameover-spells').textContent = stats.spellsUnlocked || 0;
+        }
+        
+        document.exitPointerLock();
+        document.body.style.cursor = 'default';
+        
+        console.log('💀 Écran de Game Over affiché');
+    }
+
+    hideGameOver() {
+        this.gameOverScreen.style.display = 'none';
+        this.isInMenu = false;
+        this.isPaused = false;
+    }
+}

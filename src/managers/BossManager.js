@@ -1,18 +1,30 @@
+import * as THREE from 'three';
 import { Boss } from '../entities/Boss.js';
+import { Minion } from '../entities/Minion.js';
 
 export class BossManager {
-    constructor(scene, spellManager, potionManager = null, player = null, menuManager = null) {
+    constructor(scene, spellManager, potionManager = null, player = null, menuManager = null, obstacleManager = null) {
         this.scene = scene;
         this.spellManager = spellManager;
         this.potionManager = potionManager;
         this.player = player;
         this.menuManager = menuManager;
+        this.obstacleManager = obstacleManager;
         this.currentBoss = null;
         this.currentBossIndex = 0;
         this.difficulty = 'normal'; // Sera défini par le jeu
         this.isInfiniteMode = false;
         this.bossKillCount = 0;
         this.bossConfigs = this.initBossConfigs();
+        
+        // Système de sbires
+        this.minions = []; // Liste des sbires actuellement en vie
+        this.minionsRequired = [5, 7, 10, 12, 15, 17, 20]; // Nombre de sbires par boss
+        this.minionsKilled = 0; // Nombre de sbires tués
+        this.minionsSpawned = false; // Flag pour savoir si les sbires ont été spawnés
+        this.minionsSpawnTime = 0; // Timestamp du spawn des sbires
+        this.minionsHelpTimeout = 120000; // 2 minutes avant d'afficher les positions
+        this.minionsHelpActivated = false; // Flag pour savoir si l'aide est activée
     }
 
     initBossConfigs() {
@@ -126,6 +138,12 @@ export class BossManager {
         if (this.currentBoss) {
             this.currentBoss.remove();
         }
+        
+        // Régénérer le labyrinthe à chaque nouveau boss (sauf le premier)
+        if (this.obstacleManager && index > 0) {
+            console.log('🔄 Régénération du labyrinthe pour le boss suivant...');
+            this.obstacleManager.regenerate();
+        }
 
         // Mode infini : toujours spawner un boss aléatoire
         if (this.isInfiniteMode) {
@@ -136,7 +154,16 @@ export class BossManager {
             config.hp = Math.floor(config.hp * 1.1);
             config.damage = Math.floor(config.damage * 1.1);
             
-            this.currentBoss = new Boss(this.scene, config);
+            // Ajouter la taille de l'arène pour le pathfinding
+            config.arenaSize = 100;
+            
+            // Trouver une position valide pour le boss (loin des obstacles)
+            if (this.obstacleManager && this.player) {
+                const validPosition = this.obstacleManager.getRandomBossPosition(this.player.camera.position, 15, 22);
+                config.position = { x: validPosition.x, y: 0, z: validPosition.z };
+            }
+            
+            this.currentBoss = new Boss(this.scene, config, this.obstacleManager);
             this.currentBossIndex = randomIndex;
             
             console.log(`♾️ Boss Infini #${this.bossKillCount + 1}: ${config.name} [+10%]`);
@@ -178,18 +205,14 @@ export class BossManager {
             return null;
         }
 
-        const config = { ...this.bossConfigs[index] };
-        
-        // Appliquer le modificateur de difficulté
-        if (this.difficulty === 'hard') {
-            config.hp = Math.floor(config.hp * 1.1); // +10% HP
-            config.damage = Math.floor(config.damage * 1.1); // +10% dégâts
-        }
-        
-        this.currentBoss = new Boss(this.scene, config);
+        // Sauvegarder l'index pour le spawning ultérieur
         this.currentBossIndex = index;
-
-        console.log(`⚔️ Boss ${index + 1}/${this.bossConfigs.length}: ${config.name}${this.difficulty === 'hard' ? ' [DIFFICILE]' : ''}`);
+        this.minionsSpawned = false;
+        
+        // NOUVEAU : Spawner d'abord les sbires au lieu du boss
+        this.spawnMinions(index);
+        
+        console.log(`⚔️ Boss ${index + 1}/${this.bossConfigs.length}: ${this.bossConfigs[index].name} - Éliminez d'abord les sbires !`);
         
         // Mettre à jour l'index du boss dans le potionManager
         if (this.potionManager) {
@@ -207,7 +230,7 @@ export class BossManager {
             this.potionManager.clearCollectedPotions();
         }
         
-        return this.currentBoss;
+        return null; // Pas de boss pour l'instant, seulement les sbires
     }
 
     onBossDefeated() {
@@ -441,12 +464,235 @@ export class BossManager {
     }
 
     update(delta, playerPosition) {
+        // Mettre à jour les sbires
+        for (let i = this.minions.length - 1; i >= 0; i--) {
+            const minion = this.minions[i];
+            
+            if (minion.isDead) {
+                this.minions.splice(i, 1);
+                this.minionsKilled++;
+                console.log(`👊 Sbire éliminé ! (${this.minionsKilled}/${this.getMinionCount()})`);
+            } else {
+                minion.update(delta, playerPosition);
+            }
+        }
+        
+        // Vérifier si on doit activer l'aide après 2 minutes
+        if (this.minionsSpawned && !this.minionsHelpActivated && this.minions.length > 0) {
+            const elapsed = Date.now() - this.minionsSpawnTime;
+            if (elapsed >= this.minionsHelpTimeout) {
+                this.activateMinionsHelp();
+            }
+        }
+        
+        // Si tous les sbires sont morts et le boss n'a pas encore spawné, spawner le boss
+        if (this.minionsSpawned && this.minions.length === 0 && !this.currentBoss) {
+            console.log('✅ Tous les sbires éliminés ! Le boss arrive...');
+            
+            // Spawner le VRAI boss maintenant
+            const index = this.currentBossIndex;
+            const config = { ...this.bossConfigs[index] };
+            
+            // Appliquer le modificateur de difficulté
+            if (this.difficulty === 'hard') {
+                config.hp = Math.floor(config.hp * 1.1);
+                config.damage = Math.floor(config.damage * 1.1);
+            }
+            
+            config.arenaSize = 100;
+            
+            // Trouver une position valide pour le boss
+            if (this.obstacleManager && this.player) {
+                const validPosition = this.obstacleManager.getRandomBossPosition(this.player.camera.position, 15, 22);
+                config.position = { x: validPosition.x, y: 0, z: validPosition.z };
+                console.log(`📍 Position du boss: (${validPosition.x.toFixed(1)}, ${validPosition.z.toFixed(1)})`);
+            }
+            
+            this.currentBoss = new Boss(this.scene, config, this.obstacleManager);
+            console.log(`⚔️ Boss ${index + 1}/${this.bossConfigs.length}: ${config.name}${this.difficulty === 'hard' ? ' [DIFFICILE]' : ''}`);
+        }
+        
         if (this.currentBoss && !this.currentBoss.isDead && !this.currentBoss.isDefeated) {
             this.currentBoss.update(delta, playerPosition);
         } else if (this.currentBoss && (this.currentBoss.isDead || this.currentBoss.isDefeated)) {
             this.onBossDefeated();
             this.currentBoss = null;
         }
+    }
+    
+    spawnMinions(bossIndex) {
+        // Nettoyer les sbires existants
+        this.minions.forEach(minion => minion.remove());
+        this.minions = [];
+        this.minionsKilled = 0;
+        this.minionsSpawned = true;
+        this.minionsSpawnTime = Date.now(); // Démarrer le timer
+        this.minionsHelpActivated = false;
+        
+        const config = this.bossConfigs[bossIndex];
+        const count = this.getMinionCount();
+        
+        console.log(`👥 Spawning ${count} sbires avant le boss ${config.name}...`);
+        
+        const spawnedPositions = []; // Pour vérifier l'espacement minimum
+        const minDistance = 20; // Distance minimum entre sbires
+        
+        // Créer les sbires espacés d'au moins 20m
+        for (let i = 0; i < count; i++) {
+            let x, z;
+            let validPosition = false;
+            let attempts = 0;
+            const maxAttempts = 50;
+            
+            while (!validPosition && attempts < maxAttempts) {
+                // Générer une position aléatoire dans l'arène (pas en cercle)
+                x = (Math.random() - 0.5) * 90; // -45 à +45
+                z = (Math.random() - 0.5) * 90;
+                
+                // Vérifier que le sbire n'est pas trop proche du joueur (minimum 15m)
+                const distToPlayer = Math.sqrt(
+                    Math.pow(x - this.player.camera.position.x, 2) + 
+                    Math.pow(z - this.player.camera.position.z, 2)
+                );
+                
+                if (distToPlayer < 15) {
+                    attempts++;
+                    continue;
+                }
+                
+                // Vérifier l'espacement avec les autres sbires (minimum 20m)
+                let tooClose = false;
+                for (const pos of spawnedPositions) {
+                    const dist = Math.sqrt(
+                        Math.pow(x - pos.x, 2) + 
+                        Math.pow(z - pos.z, 2)
+                    );
+                    if (dist < minDistance) {
+                        tooClose = true;
+                        break;
+                    }
+                }
+                
+                if (tooClose) {
+                    attempts++;
+                    continue;
+                }
+                
+                // Vérifier les collisions avec obstacles
+                if (this.obstacleManager) {
+                    const testPos = new THREE.Vector3(x, 0, z);
+                    if (this.obstacleManager.checkCollision(testPos, 1.0)) {
+                        attempts++;
+                        continue;
+                    }
+                }
+                
+                // Position valide !
+                validPosition = true;
+            }
+            
+            // Si aucune position valide trouvée après maxAttempts, utiliser une position par défaut
+            if (!validPosition) {
+                const angle = (Math.PI * 2 * i) / count;
+                x = this.player.camera.position.x + Math.cos(angle) * 30;
+                z = this.player.camera.position.z + Math.sin(angle) * 30;
+                console.warn(`⚠️ Position par défaut utilisée pour sbire ${i + 1}`);
+            }
+            
+            spawnedPositions.push({ x, z });
+            
+            const minionConfig = {
+                name: `Sbire ${config.name}`,
+                speed: 2,
+                color: config.color,
+                size: { x: 0.5, y: 1, z: 0.5 },
+                position: { x, y: 0, z },
+                modelPath: config.modelPath,
+                modelScale: config.modelScale,
+                modelColor: config.modelColor,
+                customColors: config.customColors,
+                arenaSize: 100
+            };
+            
+            const minion = new Minion(this.scene, minionConfig, this.obstacleManager);
+            this.minions.push(minion);
+        }
+        
+        console.log(`✅ ${count} sbires spawnés avec espacement de ${minDistance}m minimum`);
+    }
+    
+    getMinionCount() {
+        // Retourner le nombre de sbires requis pour le boss actuel
+        if (this.currentBossIndex < this.minionsRequired.length) {
+            return this.minionsRequired[this.currentBossIndex];
+        }
+        return 5; // Par défaut
+    }
+    
+    getMinions() {
+        return this.minions;
+    }
+    
+    checkMinionCollision(position, radius) {
+        for (const minion of this.minions) {
+            if (minion.isDead) continue;
+            
+            const distance = minion.getDistanceToPlayer(position);
+            if (distance < radius + 0.5) {
+                return { hit: true, minion: minion, distance: distance };
+            }
+        }
+        return { hit: false };
+    }
+    
+    activateMinionsHelp() {
+        this.minionsHelpActivated = true;
+        console.log(`🆘 Aide activée ! Affichage des positions des sbires restants...`);
+        
+        // Afficher les marqueurs pour tous les sbires vivants
+        for (const minion of this.minions) {
+            if (!minion.isDead) {
+                minion.showPositionMarker();
+            }
+        }
+        
+        // Notification à l'écran
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 3000;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+            animation: helpNotification 3s ease-in-out;
+        `;
+        notification.textContent = `📍 Les positions des sbires restants sont maintenant visibles !`;
+        document.body.appendChild(notification);
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes helpNotification {
+                0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+                10% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+                20% { transform: translate(-50%, -50%) scale(1); }
+                80% { opacity: 1; }
+                100% { opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                document.body.removeChild(notification);
+            }
+        }, 3000);
     }
 
     getCurrentBoss() {

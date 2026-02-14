@@ -3,10 +3,11 @@ import { SpellPickup } from '../entities/SpellPickup.js';
 import * as THREE from 'three';
 
 export class PotionManager {
-    constructor(scene, player, spellManager = null) {
+    constructor(scene, player, spellManager = null, obstacleManager = null) {
         this.scene = scene;
         this.player = player;
         this.spellManager = spellManager;
+        this.obstacleManager = obstacleManager;
         this.potions = [];
         this.potionTypes = ['health', 'mana', 'attack', 'defense'];
         this.collectionRadius = 1.5;
@@ -56,14 +57,19 @@ export class PotionManager {
         for (let i = 0; i < potionsToAdd; i++) {
             const randomType = this.potionTypes[Math.floor(Math.random() * this.potionTypes.length)];
             
-            const angle = Math.random() * Math.PI * 2;
-            const distance = 5 + Math.random() * 10;
-            
-            const position = new THREE.Vector3(
-                Math.cos(angle) * distance,
-                0.3,
-                Math.sin(angle) * distance
-            );
+            // Utiliser l'ObstacleManager pour trouver une position valide
+            let position;
+            if (this.obstacleManager) {
+                position = this.obstacleManager.getRandomValidPosition(5, 20);
+            } else {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 5 + Math.random() * 10;
+                position = new THREE.Vector3(
+                    Math.cos(angle) * distance,
+                    0.3,
+                    Math.sin(angle) * distance
+                );
+            }
 
             this.potionsToSpawn.push({ type: randomType, position: position });
         }
@@ -88,14 +94,19 @@ export class PotionManager {
                 // Déterminer si on spawn un sort ou une potion
                 const shouldSpawnSpell = this.shouldSpawnSpell();
                 
-                const angle = Math.random() * Math.PI * 2;
-                const distance = 5 + Math.random() * 10;
-                
-                const position = new THREE.Vector3(
-                    Math.cos(angle) * distance,
-                    0.3,
-                    Math.sin(angle) * distance
-                );
+                // Utiliser l'ObstacleManager pour trouver une position valide
+                let position;
+                if (this.obstacleManager) {
+                    position = this.obstacleManager.getRandomValidPosition(5, 20);
+                } else {
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 5 + Math.random() * 10;
+                    position = new THREE.Vector3(
+                        Math.cos(angle) * distance,
+                        0.3,
+                        Math.sin(angle) * distance
+                    );
+                }
 
                 if (shouldSpawnSpell) {
                     const randomSpell = this.availableSpells[Math.floor(Math.random() * this.availableSpells.length)];

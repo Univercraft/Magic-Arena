@@ -2,9 +2,11 @@ import * as THREE from "three";
 import { ShieldManager } from './managers/ShieldManager.js';
 
 export class Player {
-    constructor(scene, arena = null) {
+    constructor(scene, arena = null, obstacleManager = null) {
         this.scene = scene;
         this.arena = arena;
+        this.obstacleManager = obstacleManager;
+        this.bossManager = null; // Sera défini plus tard
         
         // Stats du joueur
         this.stats = {
@@ -53,7 +55,7 @@ export class Player {
 
         // Vitesse et rotation
         this.speed = 5;
-        this.rotationSpeed = 0.002;
+        this.rotationSpeed = 0.003; // Augmenté de 0.002 à 0.003 pour une meilleure réactivité
         
         // Angles de rotation
         this.yaw = 0;   // Rotation horizontale
@@ -66,6 +68,10 @@ export class Player {
         this.defenseBoostEndTime = 0;
 
         console.log('✅ Player créé avec ShieldManager');
+    }
+
+    setBossManager(bossManager) {
+        this.bossManager = bossManager;
     }
 
     takeDamage(amount) {
@@ -96,16 +102,20 @@ export class Player {
     }
 
     rotate(deltaX, deltaY) {
+        // ROTATION HORIZONTALE (YAW) - Pas de limitation, rotation 360° complète
         this.yaw -= deltaX * this.rotationSpeed;
-        this.pitch -= deltaY * this.rotationSpeed;
         
-        // Limiter la rotation verticale
+        // ROTATION VERTICALE (PITCH) - Limitée pour éviter de regarder trop haut/bas
+        this.pitch -= deltaY * this.rotationSpeed;
         this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
         
         // Appliquer la rotation à la caméra
         this.camera.rotation.order = 'YXZ';
         this.camera.rotation.y = this.yaw;
         this.camera.rotation.x = this.pitch;
+        
+        // Synchroniser la rotation du container avec le yaw pour le bouclier et les collisions
+        this.container.rotation.y = this.yaw;
     }
 
     move(direction, deltaTime) {
@@ -132,12 +142,44 @@ export class Player {
             // Calculer la nouvelle position
             const newPosition = this.camera.position.clone().add(moveVector);
             
-            // Vérifier la collision avec les murs si l'arène existe
+            // Vérifier la collision avec le boss d'abord
+            if (this.bossManager && this.bossManager.currentBoss && !this.bossManager.currentBoss.isDead) {
+                const boss = this.bossManager.currentBoss;
+                if (boss.mesh && boss.mesh.position) {
+                    const dx = newPosition.x - boss.mesh.position.x;
+                    const dz = newPosition.z - boss.mesh.position.z;
+                    const distance = Math.sqrt(dx * dx + dz * dz);
+                    const minDistance = 2; // Rayon de collision avec le boss
+                    
+                    if (distance < minDistance) {
+                        // Pousser le joueur à l'extérieur
+                        const angle = Math.atan2(dz, dx);
+                        const pushedX = boss.mesh.position.x + Math.cos(angle) * minDistance;
+                        const pushedZ = boss.mesh.position.z + Math.sin(angle) * minDistance;
+                        newPosition.x = pushedX;
+                        newPosition.z = pushedZ;
+                        
+                        // CRITIQUE: Vérifier que la position poussée ne traverse pas un mur
+                        if (this.obstacleManager) {
+                            const obstacleCheck = this.obstacleManager.checkCollision(newPosition, 0.5);
+                            newPosition.copy(obstacleCheck.position);
+                        }
+                    }
+                }
+            }
+            
+            // Vérifier la collision avec les obstacles (si pas déjà fait)
+            if (this.obstacleManager) {
+                const obstacleCollision = this.obstacleManager.checkCollision(newPosition, 0.5);
+                newPosition.copy(obstacleCollision.position);
+            }
+            
+            // Puis vérifier la collision avec les murs de l'arène
             if (this.arena) {
                 const collision = this.arena.checkCollision(newPosition, 0.5);
                 this.camera.position.copy(collision.position);
             } else {
-                this.camera.position.add(moveVector);
+                this.camera.position.copy(newPosition);
             }
             
             this.container.position.copy(this.camera.position);

@@ -21,7 +21,9 @@ export class Arena {
         const floorMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x2d2d2d,
             roughness: 0.8,
-            metalness: 0.2
+            metalness: 0.2,
+            flatShading: false,
+            side: THREE.FrontSide
         });
         this.floor = new THREE.Mesh(floorGeometry, floorMaterial);
         this.floor.rotation.x = -Math.PI / 2;
@@ -33,7 +35,10 @@ export class Arena {
         const borderGeometry = new THREE.PlaneGeometry(this.size + borderSize * 2, this.size + borderSize * 2);
         const borderMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x1a1a1a,
-            roughness: 0.9
+            roughness: 0.9,
+            metalness: 0.1,
+            flatShading: false,
+            side: THREE.FrontSide
         });
         const border = new THREE.Mesh(borderGeometry, borderMaterial);
         border.rotation.x = -Math.PI / 2;
@@ -46,7 +51,9 @@ export class Arena {
         const wallMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x4a4a4a,
             roughness: 0.7,
-            metalness: 0.3
+            metalness: 0.3,
+            flatShading: false,
+            side: THREE.FrontSide
         });
 
         const halfSize = this.size / 2;

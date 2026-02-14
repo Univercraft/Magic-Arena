@@ -7,6 +7,7 @@ import { SpellWheel } from './ui/SpellWheel.js';
 import { SpellUI } from './ui/SpellUI.js';
 import { Arena } from './entities/Arena.js';
 import { MenuManager } from './ui/MenuManager.js';
+import { ObstacleManager } from './managers/ObstacleManager.js';
 
 // SCENE
 const scene = new THREE.Scene();
@@ -14,7 +15,10 @@ scene.background = new THREE.Color(0x1a1a1a);
 scene.fog = new THREE.Fog(0x1a1a1a, 30, 60); // Brouillard pour l'ambiance
 
 // ARÈNE
-const arena = new Arena(scene, 50);
+const arena = new Arena(scene, 100);
+
+// OBSTACLES / LABYRINTHE
+const obstacleManager = new ObstacleManager(scene, 100);
 
 // LUMIERE
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -31,7 +35,7 @@ floor.rotation.x = -Math.PI / 2;
 scene.add(floor);
 
 // PLAYER
-const player = new Player(scene, arena);
+const player = new Player(scene, arena, obstacleManager);
 
 // PROJECTILES
 const projectiles = [];
@@ -40,13 +44,16 @@ const projectiles = [];
 const spellManager = new SpellManager();
 
 // Créer le gestionnaire de potions
-const potionManager = new PotionManager(scene, player, spellManager);
+const potionManager = new PotionManager(scene, player, spellManager, obstacleManager);
 
 // MENU MANAGER
 const menuManager = new MenuManager();
 
 // Créer le gestionnaire de boss avec player et menuManager
-const bossManager = new BossManager(scene, spellManager, potionManager, player, menuManager);
+const bossManager = new BossManager(scene, spellManager, potionManager, player, menuManager, obstacleManager);
+
+// Connecter le bossManager au player pour les collisions
+player.setBossManager(bossManager);
 
 // Créer la roue de sorts
 const spellWheel = new SpellWheel(spellManager);
@@ -274,7 +281,7 @@ function createProjectile(spell) {
 
 function updateProjectiles(delta) {
     const boss = bossManager.getCurrentBoss();
-    if (!boss || boss.isDead || boss.isDefeated) return;
+    const minions = bossManager.getMinions();
     
     for (let i = projectiles.length - 1; i >= 0; i--) {
         const proj = projectiles[i];
@@ -286,53 +293,86 @@ function updateProjectiles(delta) {
         proj.rotation.x += delta * 5;
         proj.rotation.y += delta * 5;
         
+        let projectileHit = false;
+        
+        // Collision avec les sbires
+        for (const minion of minions) {
+            if (minion.isDead) continue;
+            
+            if (proj.position.distanceTo(minion.mesh.position) < 1.0) {
+                const spell = proj.userData.spell;
+                
+                // Avada Kedavra divise par 2 la vie
+                if (spell.percentDamage) {
+                    const damage = minion.hp * spell.percentDamage;
+                    minion.takeDamage(damage);
+                }
+                // Dégâts normaux
+                else if (spell.damage) {
+                    let damage = spell.damage * player.attackBoost;
+                    minion.takeDamage(damage);
+                }
+                
+                // Les sbires ne sont pas affectés par DoT/Stun pour simplifier
+                
+                scene.remove(proj);
+                projectiles.splice(i, 1);
+                projectileHit = true;
+                break;
+            }
+        }
+        
+        if (projectileHit) continue;
+        
         // Collision avec le boss
-        if (proj.position.distanceTo(boss.mesh.position) < 1.5) {
-            const spell = proj.userData.spell;
-            
-            console.log(`🎯 ${spell.name} touche ${boss.name}!`);
-            
-            // Avada Kedavra : divise par 2 la vie restante
-            if (spell.percentDamage) {
-                const damage = boss.hp * spell.percentDamage;
-                boss.takeDamage(damage);
-                console.log(`☠️ Avada Kedavra ! ${Math.round(damage)} dégâts (50% de ${Math.round(boss.hp + damage)} HP)`);
-            }
-            // Impero : pacifie le boss (arrête ses mouvements et ses attaques)
-            else if (spell.duration && spell.type === 'control') {
-                if (boss.pacifyEndTime === undefined) {
-                    boss.pacifyEndTime = 0;
+        if (boss && !boss.isDead && !boss.isDefeated) {
+            if (proj.position.distanceTo(boss.mesh.position) < 1.5) {
+                const spell = proj.userData.spell;
+                
+                console.log(`🎯 ${spell.name} touche ${boss.name}!`);
+                
+                // Avada Kedavra : divise par 2 la vie restante
+                if (spell.percentDamage) {
+                    const damage = boss.hp * spell.percentDamage;
+                    boss.takeDamage(damage);
+                    console.log(`☠️ Avada Kedavra ! ${Math.round(damage)} dégâts (50% de ${Math.round(boss.hp + damage)} HP)`);
                 }
-                boss.pacifyEndTime = Date.now() + spell.duration;
-                console.log(`🧠 Impero ! Boss pacifié pendant ${spell.duration / 1000}s`);
-            }
-            // Dégâts directs (avec boost d'attaque)
-            else if (spell.damage) {
-                let damage = spell.damage * player.attackBoost;
-                boss.takeDamage(damage);
-                if (player.attackBoost > 1) {
-                    console.log(`💥 ${damage} dégâts infligés (avec boost x${player.attackBoost})`);
-                } else {
-                    console.log(`💥 ${damage} dégâts infligés`);
+                // Impero : pacifie le boss (arrête ses mouvements et ses attaques)
+                else if (spell.duration && spell.type === 'control') {
+                    if (boss.pacifyEndTime === undefined) {
+                        boss.pacifyEndTime = 0;
+                    }
+                    boss.pacifyEndTime = Date.now() + spell.duration;
+                    console.log(`🧠 Impero ! Boss pacifié pendant ${spell.duration / 1000}s`);
                 }
+                // Dégâts directs (avec boost d'attaque)
+                else if (spell.damage) {
+                    let damage = spell.damage * player.attackBoost;
+                    boss.takeDamage(damage);
+                    if (player.attackBoost > 1) {
+                        console.log(`💥 ${damage} dégâts infligés (avec boost x${player.attackBoost})`);
+                    } else {
+                        console.log(`💥 ${damage} dégâts infligés`);
+                    }
+                }
+                
+                // Appliquer DoT (Damage over Time) - avec boost
+                if (spell.dotDamage && spell.dotDuration) {
+                    const dotDamage = spell.dotDamage * player.attackBoost;
+                    boss.applyDot(dotDamage, spell.dotDuration / 1000);
+                    console.log(`🔥 DoT appliqué: ${dotDamage} dégâts/s pendant ${spell.dotDuration / 1000}s`);
+                }
+                
+                // Appliquer Stun
+                if (spell.stunDuration) {
+                    boss.stun(spell.stunDuration);
+                    console.log(`😵 Stun appliqué: ${spell.stunDuration / 1000}s`);
+                }
+                
+                scene.remove(proj);
+                projectiles.splice(i, 1);
+                continue;
             }
-            
-            // Appliquer DoT (Damage over Time) - avec boost
-            if (spell.dotDamage && spell.dotDuration) {
-                const dotDamage = spell.dotDamage * player.attackBoost;
-                boss.applyDot(dotDamage, spell.dotDuration / 1000);
-                console.log(`🔥 DoT appliqué: ${dotDamage} dégâts/s pendant ${spell.dotDuration / 1000}s`);
-            }
-            
-            // Appliquer Stun
-            if (spell.stunDuration) {
-                boss.stun(spell.stunDuration);
-                console.log(`😵 Stun appliqué: ${spell.stunDuration / 1000}s`);
-            }
-            
-            scene.remove(proj);
-            projectiles.splice(i, 1);
-            continue;
         }
         
         // Supprimer si trop vieux
@@ -357,6 +397,37 @@ function updateHUD() {
     if (manaBar) {
         const manaPercent = (player.stats.mana / player.stats.maxMana) * 100;
         manaBar.style.width = manaPercent + '%';
+    }
+    
+    // Afficher le nombre de sbires restants
+    let minionsCounter = document.getElementById('minions-counter');
+    const minionsAlive = bossManager.getMinions().filter(m => !m.isDead).length;
+    
+    if (minionsAlive > 0) {
+        if (!minionsCounter) {
+            minionsCounter = document.createElement('div');
+            minionsCounter.id = 'minions-counter';
+            minionsCounter.style.cssText = `
+                position: fixed;
+                top: 120px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(139, 0, 0, 0.9);
+                color: #ffd700;
+                padding: 15px 30px;
+                border-radius: 10px;
+                font-size: 24px;
+                font-weight: bold;
+                z-index: 1500;
+                box-shadow: 0 0 15px rgba(139, 0, 0, 0.8);
+                border: 2px solid #ffd700;
+            `;
+            document.body.appendChild(minionsCounter);
+        }
+        minionsCounter.textContent = `👥 Sbires restants: ${minionsAlive}`;
+        minionsCounter.style.display = 'block';
+    } else if (minionsCounter) {
+        minionsCounter.style.display = 'none';
     }
     
     const boss = bossManager.getCurrentBoss();
@@ -574,6 +645,20 @@ function animate() {
     }
     
     const delta = clock.getDelta();
+    
+    // Vérifier si le joueur est mort
+    if (player.stats.hp <= 0) {
+        console.log('💀 Le joueur est mort !');
+        menuManager.showGameOver({
+            bossesDefeated: bossManager.currentBossIndex,
+            spellsUnlocked: spellManager.unlockedSpells.length
+        });
+        return;
+    }
+    
+    // Mettre à jour le labyrinthe vivant (SEULEMENT si en jeu)
+    obstacleManager.update();
+    
     // Mettre à jour le joueur
     if (!isWheelOpen) {
         player.move(keys, delta);
@@ -619,11 +704,40 @@ function animate() {
         
         // Ne pas prendre de dégâts si le boss est pacifié (Impero)
         if (!boss.isPacified() && distance < attackRange && !boss.canCastSpells) {
-            const damageAmount = boss.damage * delta;
-            player.takeDamage(damageAmount);
-            // Log uniquement toutes les 60 frames pour ne pas spam la console
-            if (Math.random() < 0.016) {
-                console.log(`👊 ${boss.name} attaque ! Distance: ${distance.toFixed(2)}m, Dégâts: ${damageAmount.toFixed(1)}`);
+            // Système de cooldown : 1 attaque par seconde
+            const now = Date.now();
+            if (!boss.lastMeleeAttack || now - boss.lastMeleeAttack >= 1000) {
+                const damageAmount = boss.damage;
+                player.takeDamage(damageAmount);
+                boss.lastMeleeAttack = now;
+                console.log(`👊 ${boss.name} FRAPPE ! Distance: ${distance.toFixed(2)}m, Dégâts: ${damageAmount}, HP restants: ${player.stats.hp.toFixed(0)}`);
+            }
+        }
+    }
+    
+    // Collision avec les sbires
+    const minions = bossManager.getMinions();
+    if (!isWheelOpen && !menuManager.isPaused) {
+        for (const minion of minions) {
+            if (minion.isDead) continue;
+            
+            const distance = minion.getDistanceToPlayer(player.camera.position);
+            
+            // Debug: afficher la distance plus souvent pour mieux voir
+            if (distance < 3) {
+                console.log(`📏 Distance sbire-joueur: ${distance.toFixed(2)}m (attaque à <2.0m)`);
+            }
+            
+            // Les sbires attaquent au corps à corps (range 2.0m) avec cooldown
+            if (distance < 2.0) {
+                // Système de cooldown : 1 attaque par seconde
+                const now = Date.now();
+                if (now - minion.lastAttackTime >= minion.attackCooldown) {
+                    const damageAmount = minion.damage;
+                    player.takeDamage(damageAmount);
+                    minion.lastAttackTime = now;
+                    console.log(`⚔️ SBIRE ${minion.name} FRAPPE ! Distance: ${distance.toFixed(2)}m, Dégâts: ${damageAmount}, HP restants: ${player.stats.hp.toFixed(0)}`);
+                }
             }
         }
     }
